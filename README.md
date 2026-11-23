@@ -269,6 +269,14 @@ Emi can now operate app windows: *"click the Send button"*, *"open the second vi
 - With **Ask before risky actions** on, clicks on things like Send, Delete, Buy, Install or Confirm ask you first.
 - She never types passwords.
 
+### Her own browser (website jobs)
+For anything on a website that takes more than one step (*"go to Moodle, open each course's Download Center and download everything into my semester folder"*), Emi uses a browser window of her own instead of screenshots. She reads each page as text and clicks things by name (about a second per click instead of five), and files land straight in the folder she was told, with ZIPs unzipped there. There are no Save dialogs.
+- It's Brave (or Edge) with a separate profile in `data\browser`. The first time a site asks for a password, sign in there yourself and say "continue". It stays signed in after that.
+- The first use installs Playwright into Emi's `.venv` (about 30 s, once). Settings are under `browser:` in `config.yaml`.
+
+### Big jobs and "continue"
+One request can take up to 60 steps or 20 minutes (`brain.max_steps`, `brain.max_minutes`). If a job stops (the limit, Esc, or a sign-in she needs from you), say **"continue"** within 30 minutes. She picks up exactly where she stopped, with everything she'd already done in mind.
+
 ### Your own voice
 Open the Control Center → **Voice** to switch voices instantly. You hear a sample right away.
 - **Free voices** from Microsoft Edge (the default).

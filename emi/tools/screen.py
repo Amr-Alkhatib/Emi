@@ -12,6 +12,18 @@ from . import IS_WINDOWS, ToolError, require_windows, tool
 
 _selection: dict = {"img": None, "t": 0.0}
 
+# Called with True just before Emi takes a screenshot for herself and False right after: the island hides from
+# the picture (not from your screen). main.py registers it.
+CAPTURE_HOOKS: list = []
+
+
+def _shield(on: bool) -> None:
+    for fn in CAPTURE_HOOKS:
+        try:
+            fn(on)
+        except Exception:
+            pass
+
 
 def set_selection(img) -> None:
     """The crop tool stores the area you dragged here."""
@@ -59,7 +71,13 @@ def capture(region: str = "full"):
             top = min(max(p["y"] - h // 2, mon["top"]), mon["top"] + mon["height"] - h)
             box = {"left": left, "top": top, "width": w, "height": h}
             mark = (p["x"] - left, p["y"] - top)
-        shot = sct.grab(box)
+        _shield(True)
+        try:
+            if CAPTURE_HOOKS:
+                time.sleep(0.06)          # a few frames for Windows to redraw without the island
+            shot = sct.grab(box)
+        finally:
+            _shield(False)
         img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
     if mark:  # draw where the mouse was, so "this" is unambiguous
         d = ImageDraw.Draw(img)

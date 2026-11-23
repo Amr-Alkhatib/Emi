@@ -248,6 +248,9 @@ def main():
     tts = TTS(cfg, state, player)
     agent = Agent(cfg, brain, registry, storage, state, ui, tts)
     ui.tts = tts
+    if hasattr(ui, "hidden_from_capture"):        # Emi's screenshots leave her own island out
+        from emi.tools import screen as screen_tools
+        screen_tools.CAPTURE_HOOKS.append(ui.hidden_from_capture)
     holder: dict = {"listener": None}
     registry.confirm_fn = make_confirm(cfg, ui, agent, tts, lambda: holder["listener"])
 

@@ -13,6 +13,7 @@ from .config import ConfigError
 from .llm import Brain, friendly_error
 from .router import choose_route, strip_override
 from .tools import Registry, ToolContext
+from .tools.files import user_folders
 
 log = logging.getLogger("emi.agent")
 
@@ -33,10 +34,21 @@ commands are checked with the user automatically (Allow/Deny). If they deny, acc
 - For "what's on my screen / this error / this window" questions use look_at_screen.
 - For current information (news, weather, prices, scores, release dates) use web_search, then fetch_page if needed.
 - To find a file the user mentions, use search_files before saying you can't find it.
+- Folders: use make_folder (one call makes a folder and all its subfolders) and extract_zip to unzip. In commands, \
+never build paths from $HOME\\Desktop or $env:USERPROFILE\\Desktop: the user's Desktop may live in OneDrive. Use the \
+real paths listed below.
 - Timers and reminders: use set_reminder with an ISO local time (you know the current time below).
-- To operate an app's interface, prefer direct tools first (open_app, open_url, press_keys, type_text). When you \
+- Websites: for anything that takes more than one step on a site (signing in, clicking through pages, forms, \
+downloading files) use the browser tool, NOT open_url + screen_click. It reads pages as text, so chain steps by \
+visible text in one message (e.g. open → click "Download Center" → download "ZIP"). browser download with save_to \
+puts a file straight into a folder, and unzip extracts a ZIP there. If a page asks for a password, stop and tell the \
+user to sign in in your browser window, then to say "continue". open_url is only for showing the user a page.
+- To operate a desktop app's interface, prefer direct tools first (open_app, press_keys, type_text). When you \
 have to use the GUI, use screen_click with a precise description, then look_at_screen to check what happened. \
 Click one thing at a time. Never click to pay, buy or send money.
+- Big jobs (the same steps for several items, e.g. 6 courses): keep going through all of them without stopping to \
+report in between, and don't write any reply text until the whole job is done (text can end your turn early). Then \
+say briefly what worked and what didn't. If an item fails, note it and move on to the next.
 
 Be fast — the user is waiting, and every extra step costs seconds:
 - Use the fewest tool calls. Call independent tools together in one message.
@@ -106,6 +118,48 @@ FINISHING_TOOLS = {"open_app", "open_url", "open_path", "media_control", "type_t
 # "open Spotify and play lofi": more than one thing asked, so the AI gets to see the results and carry on
 MULTI_STEP = re.compile(r"\b(and|then|after that|afterwards|also|plus|next|once)\b", re.I)
 
+# "continue", "go on", "ok I'm logged in, continue"… → pick the last job up where it stopped
+CONTINUE = re.compile(
+    r"^\W*(?:(?:ok(?:ay)?|yes|yeah|yep|alright|right|done|now|please|so|emi|hey emi|i'?m back)[\s,.!]+)*"
+    r"(?:continue|go on|go ahead|keep going|carry on|resume|proceed|finish (?:it|that|the job|up)|"
+    r"weiter|mach weiter|i(?:'m| am|'ve| have)? (?:logged|signed) in)\b", re.I)
+RESUME_WINDOW = 30 * 60          # seconds a job can still be continued
+KEEP_FULL_RESULTS = 6            # the newest tool results stay whole; older ones are shortened
+
+
+def compact(messages: list[dict], keep: int = KEEP_FULL_RESULTS, limit: int = 1200) -> None:
+    """Long jobs pile up page listings and screen descriptions, and every step re-sends all of them. Older tool
+    results are cut short so step 40 is as quick as step 2; the newest few stay whole."""
+    seen = 0
+    for m in reversed(messages):
+        content = m.get("content")
+        if m.get("role") == "tool" and isinstance(content, str):
+            seen += 1
+            if seen > keep and len(content) > limit:
+                m["content"] = content[:limit] + " …(older result shortened)"
+        elif m.get("role") == "user" and isinstance(content, list):      # Claude API: results inside a user turn
+            for b in reversed(content):
+                if isinstance(b, dict) and b.get("type") == "tool_result":
+                    seen += 1
+                    c = b.get("content")
+                    if seen > keep and isinstance(c, str) and len(c) > limit:
+                        b["content"] = c[:limit] + " …(older result shortened)"
+
+
+def action_note(done: list[tuple[str, dict, bool]], limit: int = 700) -> str:
+    """A short record of what the tools did, kept with the reply in the conversation so a follow-up
+    ("now unzip them", "put it in the other folder") knows what happened."""
+    if not done:
+        return ""
+    parts = []
+    for name, args, ok in done:
+        brief = ", ".join(f"{k}={str(v)[:60]!r}" for k, v in list((args or {}).items())[:3])
+        parts.append(f"{name}({brief}){'' if ok else ' FAILED'}")
+    text = "; ".join(parts)
+    if len(text) > limit:
+        text = "…" + text[-limit:]
+    return f"\n\n[What I did: {text}]"
+
 
 def quick_reply(calls) -> str:
     """A short spoken confirmation when the model only acted and wrote nothing."""
@@ -151,7 +205,15 @@ class Agent:
         self.current_source = "typed"
         self.pending_mode: tuple[str, float] | None = None   # e.g. ("crop", time) right after you select an area
         self.history: list[dict] = []
-        self.max_steps = int(cfg.get("brain.max_steps", 12))
+        self.max_steps = max(int(cfg.get("brain.max_steps", 60) or 60), 1)
+        self.max_seconds = float(cfg.get("brain.max_minutes", 20) or 20) * 60
+        # the last AI job's whole conversation (with its tool calls), so "continue" picks up exactly there
+        self.last_run: dict | None = None
+        self._done: list[tuple[str, dict, bool]] = []
+        try:
+            self.folders = user_folders()
+        except Exception:
+            self.folders = {}
         self.ctx = ToolContext(cfg, storage, state, brain, ui, registry, self.stop_event)
 
     # ── public ──
@@ -193,6 +255,8 @@ class Agent:
         static = (f"You are {name}, a personal desktop AI assistant{' for ' + user if user else ''}. "
                   f"{p['prompt']} Personality changes your tone, never your rules.\n\n{RULES}\n"
                   f"Saved routines the user can start: {routines}.")
+        if self.folders:
+            static += "\nThe user's real folders: " + "; ".join(f"{k} = {v}" for k, v in self.folders.items()) + "."
         if self.registry.is_enabled("ask_claude"):
             static += "\n\n" + CLAUDE_TEAMMATE
         now = datetime.now()
@@ -220,6 +284,7 @@ class Agent:
         log.info("tool %s(%s) -> %s [%.1f s]", name, args, result[:200].replace("\n", " "), time.monotonic() - t)
         ok = not result.startswith("Error") and "did NOT allow" not in result
         self.ui.finish_step(sid, ok)
+        self._done.append((name, args if isinstance(args, dict) else {}, ok))
         return result, ok
 
     def _instant(self, text: str) -> str | None:
@@ -238,10 +303,14 @@ class Agent:
         result, ok = self._run_tool(name, args)
         return reply if ok else None
 
-    def _think(self, prompt: str, request: str = "", mode: str = "ask") -> tuple[str, str]:
-        """The AI loop: route → think → use tools → answer. Returns (answer, timing summary for the log)."""
+    def _think(self, prompt: str, request: str = "", mode: str = "ask",
+               resume: list[dict] | None = None) -> tuple[str, str]:
+        """The AI loop: route → think → use tools → answer. Returns (answer, timing summary for the log).
+        resume: the messages of the job being continued (the user's new words are added to them)."""
         ui = self.ui
         final, llm_times = "", []
+        unfinished = False
+        messages: list[dict] = []
         route = choose_route(self.brain, request, mode, self.registry.is_enabled("ask_claude"), len(self.history))
         route_tag = f"{route.tier}->{route.model}" if route else (self.brain.fast_model if self.brain.instant else self.brain.model)
         if route:
@@ -249,7 +318,13 @@ class Agent:
             ui.set_status("thinking", "Handing to Claude…" if route.claude_handoff else f"Thinking ({route.label})…")
         self.brain.active_route = route
         try:
-            messages = self.brain.start(self.history[-12:], prompt)
+            if resume is not None:
+                self.brain.start([], "")          # checks the brain is set up (key, model)
+                messages = resume
+                messages.append({"role": "user", "content": prompt + "\n(Carry on with the job above from where "
+                                 "it stopped. Everything you already did is above; don't redo finished parts.)"})
+            else:
+                messages = self.brain.start(self.history[-12:], prompt)
             static, dynamic = self.system_prompt()
             if route and route.claude_handoff:
                 dynamic += (
@@ -257,11 +332,19 @@ class Agent:
                     "Call ask_claude right away with a clear, complete engineering brief."
                 )
             tools = self.registry.schemas()
-            multi = bool(MULTI_STEP.search(request))
+            multi = bool(MULTI_STEP.search(request)) or resume is not None
+            started = time.monotonic()
             for n in range(self.max_steps):
                 if self.stop_event.is_set():
-                    final = "Okay, stopped."
+                    final = "Okay, stopped. Say “continue” if you want me to pick it up again."
+                    unfinished = True
                     break
+                if n and time.monotonic() - started > self.max_seconds:
+                    final = (f"I've been at this for {int(self.max_seconds // 60)} minutes and it isn't finished yet. "
+                             "Say “continue” and I'll pick up where I left off.")
+                    unfinished = True
+                    break
+                compact(messages)
                 t = time.monotonic()
                 step = self.brain.step(
                     messages, static, dynamic, tools,
@@ -275,14 +358,21 @@ class Agent:
                     break
                 if step.text:
                     ui.set_status("working", step.text[:80])
-                results, all_ok = [], True
+                results, all_ok, browser_failed = [], True, False
                 for call in step.calls:
                     if self.stop_event.is_set():
                         results.append((call, "Stopped by the user."))
                         all_ok = False
                         continue
+                    if call.name == "browser" and browser_failed:
+                        # browser steps build on each other (open → click → download): after one fails, the rest
+                        # would act on the wrong page
+                        results.append((call, "Error: skipped, because an earlier browser step in this message "
+                                              "failed. Look at that error first."))
+                        continue
                     result, ok = self._run_tool(call.name, call.args, call.error)
                     all_ok = all_ok and ok
+                    browser_failed = browser_failed or (call.name == "browser" and not ok)
                     results.append((call, result))
                 # Pure actions that worked ("open Word", "type this", "new document"…) need no extra AI turn just to
                 # say "done": finish with the reply the model wrote alongside them, or a short one of our own.
@@ -290,18 +380,37 @@ class Agent:
                 if all_ok and all(c.name in FINISHING_TOOLS for c in step.calls) and \
                         (not multi or (n > 0 and step.text)):
                     final = step.text or quick_reply(step.calls)
+                    self.brain.add_results(messages, results)   # keeps the record whole for a later "continue"
                     break
                 self.brain.add_results(messages, results)
                 ui.set_status("thinking", f"Thinking ({route.label})…" if route else "Thinking…")
             else:
-                final = "That needed more steps than I'm allowed in one go. Ask me to continue if you want."
+                final = (f"That's {self.max_steps} steps and the job isn't finished yet. Say “continue” and I'll "
+                         "pick up where I left off.")
+                unfinished = True
         except ConfigError as e:
             final = str(e)
         except Exception as e:
             final = friendly_error(e)
+            unfinished = bool(messages)
         finally:
             self.brain.active_route = None
+        if messages:
+            if final and not unfinished and messages[-1].get("role") != "assistant":
+                messages.append({"role": "assistant", "content": final})
+            self.last_run = {"messages": messages, "t": time.time(), "unfinished": unfinished, "request": request}
         return final, f"AI {len(llm_times)}× " + " + ".join(f"{t:.1f}" for t in llm_times) + f" s [{route_tag}]"
+
+    def _resumable(self, text: str) -> list[dict] | None:
+        """The messages to carry on with when the user says "continue" (or "I'm logged in") soon after a job."""
+        run = self.last_run
+        if not run or time.time() - run["t"] > RESUME_WINDOW or not CONTINUE.search(text):
+            return None
+        if re.fullmatch(r"\W*resume\W*", text, re.I) and not run["unfinished"]:
+            return None              # plain "resume" after a finished job means the music
+        if len(text.split()) > 12:
+            return None              # a whole new request that happens to start with "ok, go ahead…"
+        return run["messages"]
 
     def handle(self, text: str, source: str = "typed", mode: str = "ask") -> str:
         self.current_source = source
@@ -332,14 +441,21 @@ class Agent:
             prompt = prompt.replace(text, cleaned_text, 1)
 
         t0 = time.monotonic()
-        final = self._instant(text) if (mode == "ask" and not override) else None   # everyday commands: no AI round trip at all
+        self._done = []
+        resume = self._resumable(text) if mode == "ask" else None
+        final = None
+        if resume is None and mode == "ask" and not override:
+            final = self._instant(text)      # everyday commands: no AI round trip at all
         timing = "instant"
         if final is None:
-            final, timing = self._think(prompt, text, mode)
+            if resume is not None:
+                log.info("continuing the last job (%d messages)", len(resume))
+            final, timing = self._think(prompt, text, mode, resume=resume)
         log.info("answered %r in %.1f s (%s)", text[:60], time.monotonic() - t0, timing)
 
         final = re.sub(r"<think>.*?</think>", "", final or "", flags=re.S).strip() or "Done."
-        self.history += [{"role": "user", "content": text}, {"role": "assistant", "content": final}]
+        self.history += [{"role": "user", "content": text},
+                         {"role": "assistant", "content": final + action_note(self._done)}]
         self.history = self.history[-24:]
         if not self.state.incognito:
             self.storage.append_history("user", text)

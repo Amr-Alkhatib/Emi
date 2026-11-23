@@ -24,6 +24,7 @@ httpx
 beautifulsoup4
 ddgs
 pypdf
+playwright>=1.48     # Emi's own browser window (uses your installed Brave/Edge, no browser download)
 python-docx
 openpyxl
 # Config

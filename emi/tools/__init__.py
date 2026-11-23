@@ -80,7 +80,7 @@ class ToolContext:
 class Registry:
     def __init__(self, cfg):
         # importing these files registers their tools
-        from . import apps, claude_code, documents, files, productivity, screen, system, web  # noqa: F401
+        from . import apps, browser, claude_code, documents, files, productivity, screen, system, web  # noqa: F401
         disabled = set(cfg.get("tools.disabled", []) or [])
         self.always_allow = set(cfg.get("safety.always_allow", []) or [])
         self.tools = {n: t for n, t in _TOOLS.items() if n not in disabled}

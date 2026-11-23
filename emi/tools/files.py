@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import fnmatch
 import os
+import re
 import shutil
 import time
 from datetime import datetime
@@ -42,6 +43,18 @@ def known_folder(name: str) -> Path:
             pass
     onedrive = home / "OneDrive" / sub
     return onedrive if onedrive.exists() and not (home / sub).exists() else home / sub
+
+
+def user_folders() -> dict[str, str]:
+    """Where Desktop, Documents and Downloads really are. Desktop often lives inside OneDrive, so a path built from
+    $HOME\\Desktop can point at a different, invisible folder."""
+    out = {}
+    for name in ("Desktop", "Documents", "Downloads"):
+        try:
+            out[name] = str(known_folder(name.lower()))
+        except Exception:
+            pass
+    return out
 
 
 SECRET_FILES = {(ROOT / ".env").resolve()}
@@ -238,6 +251,134 @@ def write_file(ctx, a):
     with open(path, "a" if mode == "append" else "w", encoding="utf-8") as f:
         f.write(str(a["content"]))
     return f"Saved {path}"
+
+
+BAD_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
+
+
+def clean_name(name: str) -> str:
+    """A file or folder name Windows accepts (no <>:"|?* and no trailing dots or spaces)."""
+    return BAD_CHARS.sub("_", str(name)).strip().rstrip(". ") or "_"
+
+
+def long_path(p: Path) -> str:
+    """Windows refuses paths over 260 characters unless they start with \\\\?\\ (course ZIPs nest deep)."""
+    s = str(p)
+    if IS_WINDOWS and p.is_absolute() and not s.startswith("\\\\?\\"):
+        s = "\\\\?\\UNC\\" + s[2:] if s.startswith("\\\\") else "\\\\?\\" + s
+    return s
+
+
+def _zip_name(info) -> str:
+    name = info.filename
+    if not info.flag_bits & 0x800:          # no UTF-8 flag: zipfile read it as cp437, which garbles ä ö ü
+        try:
+            name = name.encode("cp437").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+    return name.replace("\\", "/")
+
+
+def safe_extract(zip_path: Path, dest: Path) -> tuple[int, int, list[str]]:
+    """Unzip into dest → (files written, files already there, entries skipped). Entries that would land outside
+    dest (../ or absolute paths) are skipped; existing files are left alone, so running it twice is harmless."""
+    import zipfile
+    dest = Path(dest).resolve()
+    os.makedirs(long_path(dest), exist_ok=True)
+    written, existing, skipped = 0, 0, []
+    try:
+        z = zipfile.ZipFile(zip_path)
+    except zipfile.BadZipFile:
+        raise ToolError(f"{Path(zip_path).name} isn't a valid ZIP file.")
+    with z:
+        for info in z.infolist():
+            name = _zip_name(info)
+            raw = [p for p in name.split("/") if p not in ("", ".")]
+            if not raw or ".." in raw or re.match(r"^[A-Za-z]:", raw[0]) or name.startswith("/"):
+                skipped.append(name)
+                continue
+            target = dest.joinpath(*(clean_name(p) for p in raw))
+            if info.is_dir():
+                os.makedirs(long_path(target), exist_ok=True)
+                continue
+            if os.path.exists(long_path(target)):
+                existing += 1
+                continue
+            os.makedirs(long_path(target.parent), exist_ok=True)
+            with z.open(info) as src, open(long_path(target), "wb") as out:
+                shutil.copyfileobj(src, out, 1 << 20)
+            written += 1
+    return written, existing, skipped
+
+
+def extract_summary(dest: Path, written: int, existing: int, skipped: list[str]) -> str:
+    text = f"unzipped {written} file{'s' if written != 1 else ''} into {dest}"
+    if existing:
+        text += f" ({existing} were already there and were left as they were)"
+    if skipped:
+        text += f". Skipped {len(skipped)} unsafe entr{'ies' if len(skipped) != 1 else 'y'}"
+    try:
+        top = sorted(e.name for e in Path(dest).iterdir())[:12]
+        if top:
+            text += ". Top level now: " + ", ".join(top)
+    except OSError:
+        pass
+    return text
+
+
+@tool("make_folder", "Create a folder (missing parent folders too), and optionally several subfolders inside it in "
+      "the SAME call. Use this instead of run_command for folders. Accepts full paths or 'Desktop\\\\…', "
+      "'Documents\\\\…', 'Downloads\\\\…' (those resolve to the user's real folders, even inside OneDrive).",
+      {"path": {"type": "string", "description": "The folder to create (or that already exists)"},
+       "subfolders": {"type": "array", "items": {"type": "string"},
+                      "description": "Names of folders to create inside it"}},
+      ["path"], label=lambda a: f"Creating {Path(str(a.get('path'))).name}")
+def make_folder(ctx, a):
+    folder = guard_change(resolve(a["path"]))
+    if folder.exists() and not folder.is_dir():
+        raise ToolError(f"{folder} is a file, not a folder.")
+    existed = folder.is_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    made, there = [], []
+    subs = a.get("subfolders") or []
+    if isinstance(subs, str):
+        subs = [subs]
+    for name in subs:
+        parts = [p for p in re.split(r"[\\/]+", str(name)) if p.strip() not in ("", ".", "..")]
+        if not parts:
+            continue
+        sub = folder.joinpath(*(clean_name(p) for p in parts))
+        (there if sub.is_dir() else made).append(str(sub.relative_to(folder)))
+        sub.mkdir(parents=True, exist_ok=True)
+    out = f"{'Folder already existed' if existed else 'Created'}: {folder}"
+    if made:
+        out += f"\nNew subfolders: {', '.join(made)}"
+    if there:
+        out += f"\nAlready there: {', '.join(there)}"
+    return out
+
+
+@tool("extract_zip", "Unzip a .zip file into a folder (created if needed). Files already in the folder are kept. "
+      "delete_zip: send the .zip to the Recycle Bin afterwards.",
+      {"path": {"type": "string", "description": "The .zip file"},
+       "destination": {"type": "string", "description": "Folder to unzip into"},
+       "delete_zip": {"type": "boolean"}},
+      ["path", "destination"],
+      confirm=lambda a: (f"Unzip, then send the ZIP to the Recycle Bin?\n{resolve(a.get('path', ''))}"
+                         if a.get("delete_zip") else None),
+      label=lambda a: f"Unzipping {Path(str(a.get('path'))).name}")
+def extract_zip(ctx, a):
+    src = resolve(a["path"])
+    if not src.is_file():
+        raise ToolError(f"File not found: {src}")
+    dest = guard_change(resolve(a["destination"]))
+    written, existing, skipped = safe_extract(src, dest)
+    out = extract_summary(dest, written, existing, skipped)
+    if a.get("delete_zip"):
+        from send2trash import send2trash
+        send2trash(str(src))
+        out += f". Sent {src.name} to the Recycle Bin"
+    return out[0].upper() + out[1:] + "."
 
 
 @tool("move_file", "Move or rename a file or folder.",

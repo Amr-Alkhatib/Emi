@@ -87,6 +87,9 @@ if _win():
     _gdi.DeleteObject.argtypes = [wt.HANDLE]
     _dwm = ctypes.WinDLL("dwmapi")
     _dwm.DwmSetWindowAttribute.argtypes = [wt.HWND, wt.DWORD, ctypes.c_void_p, wt.DWORD]
+    _u32.SetWindowDisplayAffinity.argtypes = [wt.HWND, wt.DWORD]
+    _u32.SetWindowDisplayAffinity.restype = wt.BOOL
+    WDA_NONE, WDA_EXCLUDEFROMCAPTURE = 0x0, 0x11
 
     class _MONITORINFO(ctypes.Structure):
         _fields_ = [("cbSize", wt.DWORD), ("rcMonitor", wt.RECT), ("rcWork", wt.RECT), ("dwFlags", wt.DWORD)]
@@ -681,6 +684,17 @@ class WebUI:
             except Exception as e:
                 log.debug("bad shape %s: %s", shape, e)
         _u32.SetWindowRgn(hwnd, rgn, True)   # Windows owns rgn from here on
+
+    def hidden_from_capture(self, on: bool) -> None:
+        """While Emi takes a screenshot for herself, the island is left out of the picture (it stays on your
+        screen). Otherwise she sees her own "Thinking…" card covering whatever she was looking for."""
+        if not _win() or not self._hwnd or self._native_hidden:
+            return
+        flag = WDA_EXCLUDEFROMCAPTURE if on else WDA_NONE
+
+        def affinity(form, hwnd):
+            return _u32.SetWindowDisplayAffinity(hwnd, flag)
+        _on_ui(self.island, affinity, wait=True, title=self.cfg.name)
 
     def _snapshot(self, what: str):
         """Save a small picture of the island's spot on screen (data/island_<what>.png) for the first few

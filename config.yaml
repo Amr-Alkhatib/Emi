@@ -35,7 +35,8 @@ brain:
   auto_classifier: true         # fast Flash tie-breaker for ambiguous prompts; false = instant local rules only
   instant_commands: true        # "open Spotify", "next song", "volume 30", "what time is it"… done without the AI
   max_tokens: 4096
-  max_steps: 12                 # max tool calls for one request
+  max_steps: 60                 # max AI steps for one request (big jobs need many); say "continue" to go on
+  max_minutes: 20               # and at most this long per request
   temperature: null
   # provider: custom → any OpenAI-compatible API you pick:
   base_url: ""
@@ -114,6 +115,13 @@ gaming:
 
 tools:
   disabled: []             # tool names to turn off, e.g. [run_command, type_text]
+
+# Emi's own browser window for website jobs (sign-ins, clicking through pages, downloads into folders).
+# It has its own profile (data/browser): sign in there once yourself and it stays signed in.
+browser:
+  app: auto                # auto (Brave, else Edge) | brave | edge | chrome
+  executable: ""           # or the full path to any Chromium-based browser
+  auto_install: true       # installs Playwright into Emi's .venv the first time it's needed
 
 ui:
   theme: glacier           # glacier (light, frosted) | midnight (dark). Also in the Control Center.
