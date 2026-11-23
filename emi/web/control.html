@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en" data-theme="glacier">
+<head>
+<meta charset="utf-8">
+<title>Emi Control Center</title>
+<style>
+/* Emi's Control Center: frosted light, glossy controls. The island is how you use Emi; this is where you tune her. */
+:root, [data-theme="glacier"] {
+  color-scheme: light;
+  --ink: #0C2A4A; --ink-2: #4A6888; --ink-3: #87A0BA;
+  --bg-1: #EEF6FF; --bg-2: #D3E6FB; --bloom-1: rgba(255, 255, 255, .95); --bloom-2: rgba(150, 205, 255, .55); --bloom-3: rgba(120, 225, 235, .35);
+  --streak: rgba(255, 255, 255, .55);
+  --glass: rgba(255, 255, 255, .58); --glass-hi: rgba(255, 255, 255, .85); --edge: rgba(255, 255, 255, .92); --ring: rgba(90, 145, 215, .22);
+  --well: rgba(25, 85, 165, .06); --well-edge: rgba(25, 85, 165, .12);
+  --accent: #2F7BFF; --aqua: #33C2E6; --mint: #22BF8F; --amber: #E0901F; --coral: #E8534D; --lilac: #8473FF;
+  --shadow: 0 18px 40px -18px rgba(25, 75, 150, .45), 0 2px 6px rgba(25, 75, 150, .08);
+}
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --ink: #EAF3FF; --ink-2: #A9BFD8; --ink-3: #6E87A4;
+  --bg-1: #0B1424; --bg-2: #13223B; --bloom-1: rgba(70, 120, 210, .35); --bloom-2: rgba(40, 90, 180, .35); --bloom-3: rgba(40, 180, 200, .18);
+  --streak: rgba(150, 190, 255, .10);
+  --glass: rgba(255, 255, 255, .06); --glass-hi: rgba(255, 255, 255, .12); --edge: rgba(255, 255, 255, .12); --ring: rgba(120, 170, 255, .14);
+  --well: rgba(255, 255, 255, .05); --well-edge: rgba(255, 255, 255, .10);
+  --accent: #5B9BFF; --aqua: #4FD4F0; --mint: #3FDCAA; --amber: #F2B04E; --coral: #FF7A72; --lilac: #A496FF;
+  --shadow: 0 18px 40px -18px rgba(0, 0, 0, .7), 0 2px 6px rgba(0, 0, 0, .3);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  font: 400 14px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; user-select: none;
+  background:
+    radial-gradient(900px 520px at 78% -8%, var(--bloom-1), transparent 62%),
+    radial-gradient(700px 520px at 8% 108%, var(--bloom-2), transparent 64%),
+    radial-gradient(520px 380px at 62% 72%, var(--bloom-3), transparent 70%),
+    linear-gradient(160deg, var(--bg-1), var(--bg-2));
+}
+/* thin streaks of light across the background — the one decorative flourish */
+body::before, body::after {
+  content: ""; position: fixed; width: 160%; height: 2px; left: -30%; pointer-events: none; filter: blur(1.5px);
+  background: linear-gradient(90deg, transparent, var(--streak) 40%, transparent 70%);
+}
+body::before { top: 38%; transform: rotate(-16deg); }
+body::after { top: 66%; transform: rotate(9deg); opacity: .7; }
+
+.app { position: relative; display: grid; grid-template-columns: 84px 1fr; grid-template-rows: 56px 1fr; height: 100%; }
+
+/* ── title bar ── */
+.bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 12px 0 20px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 650 16px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.01em; }
+.dot-orb { width: 22px; height: 22px; border-radius: 50%;
+  background: radial-gradient(58% 42% at 35% 25%, #fff, rgba(255,255,255,0) 70%), radial-gradient(100% 100% at 40% 35%, var(--aqua), var(--accent));
+  box-shadow: inset 0 -2px 4px rgba(0, 40, 120, .35), 0 2px 6px rgba(47, 123, 255, .35); }
+.status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 99px; font-size: 12.5px; color: var(--ink-2);
+  background: var(--glass); box-shadow: inset 0 0 0 1px var(--edge), var(--shadow); backdrop-filter: blur(14px); }
+.status i { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mint) 22%, transparent); }
+.status.off i { background: var(--amber); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 22%, transparent); }
+.drag { flex: 1; align-self: stretch; }
+.winbtn { width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; color: var(--ink-2);
+  background: var(--glass); box-shadow: inset 0 0 0 1px var(--edge); }
+.winbtn:hover { color: var(--ink); background: var(--glass-hi); }
+.winbtn.x:hover { color: white; background: var(--coral); }
+.winbtn svg { width: 14px; height: 14px; }
+
+/* ── side rail ── */
+.rail { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0 18px; }
+.nav { width: 48px; height: 48px; border-radius: 16px; border: 0; display: grid; place-items: center; cursor: pointer; color: var(--ink-2);
+  background: var(--glass); box-shadow: inset 0 0 0 1px var(--edge), 0 6px 16px -10px rgba(25, 75, 150, .5); backdrop-filter: blur(12px);
+  transition: transform .15s, color .15s, background .15s; }
+.nav:hover { color: var(--ink); transform: translateY(-1px); }
+.nav.on { color: white; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 65%, white 35%), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 8px 18px -8px color-mix(in srgb, var(--accent) 80%, transparent); }
+.nav svg { width: 21px; height: 21px; }
+.rail .spacer { flex: 1; }
+
+/* ── pages ── */
+main { position: relative; overflow-y: auto; padding: 8px 28px 28px 8px; }
+main::-webkit-scrollbar { width: 8px; } main::-webkit-scrollbar-thumb { background: var(--well-edge); border-radius: 8px; }
+.page { display: none; animation: rise .35s ease; }
+.page.on { display: block; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+h2 { font: 650 24px/1.2 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.015em; margin: 14px 0 4px; }
+.lede { color: var(--ink-2); margin: 0 0 20px; }
+
+/* home */
+.hero { display: grid; justify-items: center; text-align: center; padding: 18px 0 26px; }
+.hero h1 { font: 650 36px/1.1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.02em; margin: 6px 0 8px; }
+.hero p { color: var(--ink-2); margin: 0; font-size: 15px; }
+kbd { font: 600 12px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; padding: 4px 7px; border-radius: 7px; color: var(--ink);
+  background: var(--glass-hi); box-shadow: inset 0 0 0 1px var(--well-edge), 0 1px 0 var(--well-edge); }
+.big-orb { position: relative; width: 168px; height: 168px; margin: 26px 0 26px; display: grid; place-items: center; }
+.big-orb::before, .big-orb::after { content: ""; position: absolute; border-radius: 50%; inset: -14px; box-shadow: inset 0 0 0 1px var(--edge), 0 0 0 1px var(--ring);
+  background: radial-gradient(closest-side, transparent 82%, color-mix(in srgb, var(--accent) 10%, transparent)); }
+.big-orb::after { inset: -34px; opacity: .55; animation: breathe 5s ease-in-out infinite; }
+.big-orb b { width: 136px; height: 136px; border-radius: 50%;
+  background:
+    radial-gradient(56% 40% at 34% 24%, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(70% 70% at 70% 84%, color-mix(in srgb, var(--aqua) 85%, white 15%), transparent 72%),
+    radial-gradient(100% 100% at 40% 35%, #6FB2FF, color-mix(in srgb, var(--accent) 70%, #001 30%));
+  box-shadow: inset 0 -10px 22px rgba(0, 30, 110, .45), inset 0 4px 8px rgba(255, 255, 255, .5), 0 18px 40px -12px rgba(47, 123, 255, .6);
+  animation: float 6s ease-in-out infinite; cursor: pointer; }
+@keyframes float { 50% { transform: translateY(-5px); } }
+@keyframes breathe { 50% { transform: scale(1.04); opacity: .3; } }
+.cta { display: flex; gap: 10px; }
+.btn { font: 600 14px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; border: 0; border-radius: 99px; padding: 12px 20px; cursor: pointer; color: var(--ink);
+  background: var(--glass-hi); box-shadow: inset 0 0 0 1px var(--edge), var(--shadow); display: inline-flex; align-items: center; gap: 8px; }
+.btn.go { color: white; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 62%, white 38%), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 10px 22px -8px color-mix(in srgb, var(--accent) 85%, transparent); }
+.btn:hover { filter: brightness(1.04); }
+.btn svg { width: 16px; height: 16px; }
+
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.tile { position: relative; padding: 16px 16px 14px; border-radius: 22px; background: var(--glass); backdrop-filter: blur(16px);
+  box-shadow: inset 0 0 0 1px var(--edge), var(--shadow); }
+.tile .ic { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; color: white; margin-bottom: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 6px 14px -6px var(--c, var(--accent)); background: linear-gradient(180deg, color-mix(in srgb, var(--c, var(--accent)) 60%, white 40%), var(--c, var(--accent))); }
+.tile .ic svg { width: 21px; height: 21px; }
+.tile h3 { margin: 0 0 3px; font: 600 15px/1.3 "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+.tile p { margin: 0; color: var(--ink-2); font-size: 12.5px; line-height: 1.4; min-height: 35px; }
+.tile .state { margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.tile .state.on { color: var(--mint); }
+.tile .state.warn { color: var(--amber); }
+.tile .switch { position: absolute; top: 18px; right: 16px; }
+
+/* settings */
+.section { padding: 18px 20px; border-radius: 22px; background: var(--glass); backdrop-filter: blur(16px); box-shadow: inset 0 0 0 1px var(--edge), var(--shadow); margin-bottom: 14px; }
+.section h3 { margin: 0 0 12px; font: 600 15px/1.3 "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+.item { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-top: 1px solid var(--well-edge); }
+.item:first-of-type { border-top: 0; padding-top: 2px; }
+.item .t { flex: 1; min-width: 0; }
+.item .t b { display: block; font-weight: 600; }
+.item .t small { color: var(--ink-2); font-size: 12.5px; }
+.selectwrap { position: relative; min-width: 260px; }
+.selectwrap::after { content: ""; position: absolute; right: 15px; top: 50%; width: 7px; height: 7px; margin-top: -5px; pointer-events: none;
+  border-right: 1.5px solid var(--ink-2); border-bottom: 1.5px solid var(--ink-2); transform: rotate(45deg); }
+select, input[type=text], textarea {
+  width: 100%; font: 500 13.5px/1.3 "Segoe UI Variable Text", "Segoe UI", sans-serif; color: var(--ink); border: 0; border-radius: 14px;
+  background: var(--glass-hi); box-shadow: inset 0 0 0 1px var(--well-edge); padding: 11px 14px; }
+select { appearance: none; padding-right: 36px; cursor: pointer; }
+textarea { resize: vertical; min-height: 70px; font-weight: 400; line-height: 1.45; }
+select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-visible, .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 3px; border-radius: 99px; background: var(--well); box-shadow: inset 0 0 0 1px var(--well-edge); }
+.seg button { font: 500 13px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; border: 0; background: none; color: var(--ink-2); padding: 9px 14px; border-radius: 99px; cursor: pointer; }
+.seg button.on { color: var(--ink); background: var(--glass-hi); box-shadow: 0 1px 4px rgba(0, 0, 0, .12), inset 0 0 0 1px var(--edge); }
+.switch { width: 44px; height: 26px; flex: none; border-radius: 99px; position: relative; cursor: pointer; background: var(--well); box-shadow: inset 0 0 0 1px var(--well-edge); transition: background .2s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: white;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, .22); transition: transform .22s cubic-bezier(.3, 1.4, .5, 1); }
+.switch.on { background: linear-gradient(180deg, #5BE0B4, var(--mint)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4); }
+.switch.on::after { transform: translateX(18px); }
+.note { color: var(--ink-3); font-size: 12.5px; margin: 8px 0 0; }
+.note.warn { color: var(--amber); }
+#designForm { display: none; gap: 10px; margin-top: 12px; }
+#designForm.show { display: grid; }
+.linkbtn { border: 0; background: none; color: var(--accent); font: 600 13px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; cursor: pointer; padding: 8px 0 0; }
+
+.mem { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--well-edge); user-select: text; }
+.mem:first-child { border-top: 0; }
+.mem span { flex: 1; }
+.mem button { border: 0; background: var(--well); color: var(--ink-2); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
+.mem button:hover { color: white; background: var(--coral); }
+.empty { color: var(--ink-2); }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 12px 18px; align-items: center; }
+.keys div { color: var(--ink-2); }
+@media (max-width: 900px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand pywebview-drag-region"><span class="dot-orb"></span>Emi</div>
+    <span class="status pywebview-drag-region" id="status"><i></i><span id="statusText">Ready</span></span>
+    <div class="drag pywebview-drag-region"></div>
+    <button class="winbtn" id="minBtn" title="Minimise" aria-label="Minimise"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 12h12"/></svg></button>
+    <button class="winbtn x" id="closeBtn" title="Close (Emi keeps running)" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+  </header>
+
+  <nav class="rail" aria-label="Sections">
+    <button class="nav on" data-p="home" title="Home" aria-label="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg></button>
+    <button class="nav" data-p="voice" title="Voice" aria-label="Voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button>
+    <button class="nav" data-p="brain" title="Brain" aria-label="Brain"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 4.6L19 8.3l-3.5 3.4.8 4.8L12 14.2l-4.3 2.3.8-4.8L5 8.3l4.8-.7z"/></svg></button>
+    <button class="nav" data-p="memory" title="Memory" aria-label="Memory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 4h12v16l-6-4-6 4z"/></svg></button>
+    <button class="nav" data-p="keys" title="Shortcuts" aria-label="Shortcuts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2.5" y="6" width="19" height="12" rx="3"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"/></svg></button>
+    <div class="spacer"></div>
+    <button class="nav" id="themeBtn" title="Light / dark" aria-label="Switch light or dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
+  </nav>
+
+  <main>
+    <!-- HOME -->
+    <section class="page on" id="p-home">
+      <div class="hero">
+        <div class="big-orb"><b id="heroOrb" title="Talk to Emi"></b></div>
+        <h1 id="hello">Hey, I'm Emi.</h1>
+        <p id="howto">Say “Hey Emi”, or press <kbd>Ctrl + Alt + Shift + E</kbd> from anywhere.</p>
+        <div class="cta" style="margin-top:22px">
+          <button class="btn go" id="talkBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>Talk to Emi</button>
+          <button class="btn" id="typeBtn">Type instead</button>
+        </div>
+      </div>
+      <div class="cards">
+        <div class="tile" style="--c:#7D8BA3"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 20L20 4"/></svg></div>
+          <div class="switch" data-k="incognito" role="switch" tabindex="0" aria-label="Incognito"></div>
+          <h3>Incognito</h3><p>No new memories, screen looks or saved chat.</p><div class="state" data-s="incognito"></div></div>
+        <div class="tile" style="--c:#8473FF"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg></div>
+          <div class="switch" data-k="proactive" role="switch" tabindex="0" aria-label="Proactive suggestions"></div>
+          <h3>Proactive ideas</h3><p>Glances at your screen now and then and offers one idea.</p><div class="state" data-s="proactive"></div></div>
+        <div class="tile" style="--c:#22BF8F"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9h4M9 7v4M15.5 10h.01M17.5 8h.01"/><path d="M6.5 5h11A4.5 4.5 0 0 1 22 9.5v1A6.5 6.5 0 0 1 15.5 17H8.5A6.5 6.5 0 0 1 2 10.5v-1A4.5 4.5 0 0 1 6.5 5z"/></svg></div>
+          <div class="switch" data-k="gaming_auto" role="switch" tabindex="0" aria-label="Gaming mode"></div>
+          <h3>Gaming mode</h3><p>Hides the island and stays quiet while you play.</p><div class="state" data-s="gaming_auto"></div></div>
+        <div class="tile" style="--c:#E0901F"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"/></svg></div>
+          <div class="switch" data-k="ask" role="switch" tabindex="0" aria-label="Ask before risky actions"></div>
+          <h3>Ask first</h3><p>Allow / Deny before commands, deleting or sending.</p><div class="state" data-s="ask"></div></div>
+      </div>
+    </section>
+
+    <!-- VOICE -->
+    <section class="page" id="p-voice">
+      <h2>Voice</h2><p class="lede">How Emi sounds and how she answers.</p>
+      <div class="section">
+        <div class="item"><div class="t"><b>Voice</b><small>You'll hear a sample when you pick one.</small></div>
+          <div class="selectwrap"><select id="voiceSel" aria-label="Voice"><option>Loading…</option></select></div></div>
+        <div class="item" style="display:block"><button class="linkbtn" id="designToggle">Design my own voice</button>
+          <div id="designForm">
+            <input type="text" id="designName" placeholder="Name, e.g. Emi" maxlength="60">
+            <textarea id="designDesc" placeholder="Describe her voice, e.g. a young, energetic woman with a light British accent who sounds like she's smiling"></textarea>
+            <div><button class="btn go" id="designBtn">Create voice</button></div>
+            <p class="note" id="designNote">Uses your Gemini key. Takes about 10 seconds.</p>
+          </div></div>
+      </div>
+      <div class="section">
+        <div class="item"><div class="t"><b>Answers</b><small>Auto speaks, and also writes it out when the answer is long or has lists or code. For one answer, say “show me…” or “read it out”.</small></div>
+          <div class="seg" id="replySeg"><button data-v="auto">Auto</button><button data-v="voice">Speak</button><button data-v="text">Text</button><button data-v="both">Both</button></div></div>
+        <div class="item"><div class="t"><b>Personality</b><small>Changes her tone, never what she's allowed to do.</small></div>
+          <div class="seg" id="persSeg"><button data-v="hype">Hype</button><button data-v="chill">Chill</button><button data-v="sleepy">Sleepy</button></div></div>
+        <div class="item"><div class="t"><b>When idle</b><small>Notch: a slim tab at the top of the screen; point at it to see Emi, click for the quick menu. Hide: nothing until you call her.</small></div>
+          <div class="seg" id="idleSeg"><button data-v="notch">Notch</button><button data-v="hide">Hide</button></div></div>
+      </div>
+    </section>
+
+    <!-- BRAIN -->
+    <section class="page" id="p-brain">
+      <h2>Brain</h2><p class="lede">Which model thinks for Emi, and who she can hand big jobs to.</p>
+      <div class="section">
+        <div class="item"><div class="t"><b>Speed</b><small>Auto switches between Flash, Hydrogen, Neon, and Claude helper per request. Instant always uses Flash. Smart always uses the model below.</small></div>
+          <div class="seg" id="speedSeg"><button data-v="auto">Auto</button><button data-v="instant">Instant</button><button data-v="smart">Smart</button></div></div>
+        <div class="item"><div class="t"><b id="brainLabel">Model</b><small id="brainNote">Used in Smart mode. Flash is fast; Hydrogen is balanced; Neon is smartest.</small></div>
+          <div class="selectwrap"><select id="modelSel" aria-label="Model"><option>Loading…</option></select></div></div>
+        <div class="item"><div class="t"><b>Claude helper</b><small id="claudeNote">Hands heavy coding and engineering jobs to Claude Code on your Claude plan.</small></div>
+          <div class="switch" data-k="claude_helper" role="switch" tabindex="0" aria-label="Claude helper"></div></div>
+      </div>
+      <div class="section">
+        <h3>Proactive ideas</h3>
+        <div class="item"><div class="t"><b>How often</b><small>Only when you switch windows, never while you're away.</small></div>
+          <div class="seg" id="everySeg"><button data-v="60">1 min</button><button data-v="120">2 min</button><button data-v="300">5 min</button></div></div>
+      </div>
+    </section>
+
+    <!-- MEMORY -->
+    <section class="page" id="p-memory">
+      <h2>Memory</h2><p class="lede">What Emi remembers about you. Say “Emi, remember that…” to add more.</p>
+      <div class="section" id="memList"></div>
+      <button class="btn" id="dataBtn">Open data folder</button>
+    </section>
+
+    <!-- SHORTCUTS -->
+    <section class="page" id="p-keys">
+      <h2>Shortcuts</h2><p class="lede">They work from any app.</p>
+      <div class="section keys" id="keyList"></div>
+      <p class="note">To change the summon shortcut, run install_shortcuts.bat again. The others live in config.yaml under hotkeys.</p>
+    </section>
+  </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const root = document.documentElement;
+const api = () => (window.pywebview && window.pywebview.api) || null;
+const call = (fn, ...a) => { const x = api(); return x && x[fn] ? x[fn](...a) : Promise.resolve(null); };
+let S = {};
+
+document.querySelectorAll(".nav[data-p]").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".nav[data-p]").forEach(n => n.classList.toggle("on", n === b));
+  document.querySelectorAll(".page").forEach(p => p.classList.toggle("on", p.id === "p-" + b.dataset.p));
+  if (b.dataset.p === "voice") loadVoices();
+  if (b.dataset.p === "brain") loadBrain();
+  if (b.dataset.p === "memory") loadMemories();
+});
+$("minBtn").onclick = () => call("control_minimize");
+$("closeBtn").onclick = () => call("control_close");
+$("talkBtn").onclick = () => call("talk");
+$("heroOrb").onclick = () => call("talk");
+$("typeBtn").onclick = () => call("type");
+$("themeBtn").onclick = () => call("set_setting", "theme", root.dataset.theme === "midnight" ? "glacier" : "midnight");
+$("dataBtn").onclick = () => call("open_data");
+
+function setSwitch(k, on) { document.querySelectorAll(`.switch[data-k="${k}"]`).forEach(s => { s.classList.toggle("on", !!on); s.setAttribute("aria-checked", !!on); }); }
+document.querySelectorAll(".switch").forEach(s => {
+  const flip = () => { const k = s.dataset.k, on = !s.classList.contains("on");
+    if (k === "ask") call("set_setting", "full_access", !on); else call("set_setting", k, on); };
+  s.onclick = flip; s.onkeydown = e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); } };
+});
+function seg(id, value, key, cast = v => v) {
+  document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle("on", String(b.dataset.v) === String(value)));
+  $(id).onclick = e => { const v = e.target.dataset.v; if (v !== undefined) call("set_setting", key, cast(v)); };
+}
+function stateText(k, on, text) { const el = document.querySelector(`.state[data-s="${k}"]`); if (el) { el.textContent = text; el.className = "state" + (on ? " on" : ""); } }
+
+window.emi = {
+  settings(o) {
+    S = { ...S, ...o };
+    if (o.theme) root.dataset.theme = o.theme;
+    if (o.name) $("hello").textContent = `Hey, I'm ${o.name}.`;
+    if (o.summonKey) $("howto").innerHTML = `Say “Hey ${S.name || "Emi"}”, or press <kbd>${o.summonKey}</kbd> from anywhere.`;
+    if (o.incognito !== undefined) { setSwitch("incognito", o.incognito); stateText("incognito", o.incognito, o.incognito ? "On" : "Off"); }
+    if (o.proactive !== undefined) { setSwitch("proactive", o.proactive); stateText("proactive", o.proactive, o.proactive ? "On · every " + Math.round((S.proactiveEvery || 120) / 60) + " min" : "Off"); }
+    if (o.gamingAuto !== undefined) { setSwitch("gaming_auto", o.gamingAuto); stateText("gaming_auto", o.gamingAuto, o.gaming ? "Game detected" : o.gamingAuto ? "Automatic" : "Off"); }
+    if (o.fullAccess !== undefined) { setSwitch("ask", !o.fullAccess);
+      const el = document.querySelector('.state[data-s="ask"]'); el.textContent = o.fullAccess ? "Full access: acts without asking" : "On";
+      el.className = "state " + (o.fullAccess ? "warn" : "on"); }
+    if (o.claudeHelper !== undefined) setSwitch("claude_helper", o.claudeHelper);
+    if (o.replyMode) seg("replySeg", o.replyMode, "reply_mode");
+    if (o.personality) seg("persSeg", o.personality, "personality");
+    if (o.idleLook) seg("idleSeg", o.idleLook, "idle_look");
+    if (o.speed) seg("speedSeg", o.speed, "speed");
+    if (o.proactiveEvery) seg("everySeg", o.proactiveEvery, "proactive_every", Number);
+    if (o.keys) $("keyList").innerHTML = o.keys.map(([k, d]) => `<kbd>${k}</kbd><div>${d}</div>`).join("");
+    if (o.statusText) { $("statusText").textContent = o.statusText; $("status").classList.toggle("off", !!o.statusWarn); }
+  },
+  open(page) { const b = document.querySelector(`.nav[data-p="${page}"]`); if (b) b.click(); },
+};
+
+function pretty(id) { return String(id).replace(/^gemini-/i, "Gemini ").replace(/^claude-/i, "Claude ").replace(/-preview$/, " (preview)")
+  .replace(/(\d)-(\d)/g, "$1.$2").replace(/-/g, " ").replace(/\b(flash|lite|pro|hydrogen|neon|carbon|argon|sonnet|haiku|opus)\b/gi, w => w[0].toUpperCase() + w.slice(1)); }
+async function loadBrain() {
+  const b = await call("brain_info"); if (!b) return;
+  $("brainLabel").textContent = `${b.label} model`;
+  const sel = $("modelSel"); sel.innerHTML = "";
+  b.options.forEach(id => { const o = new Option(pretty(id), id, false, id === b.current); sel.add(o); });
+  if (b.error) {
+    $("brainNote").textContent = b.error;
+    $("brainNote").style.color = "var(--amber)";
+  } else if (b.speed === "auto" && b.autoModels && b.autoModels.flash) {
+    $("brainNote").textContent = `Auto routing: Flash (${pretty(b.autoModels.flash)}) · Hydrogen (${pretty(b.autoModels.hydrogen)}) · Neon (${pretty(b.autoModels.neon)}). Overrides: /flash, /hydrogen, /neon, /claude.`;
+    $("brainNote").style.color = "";
+  } else {
+    $("brainNote").textContent = "Used in Smart mode. Flash is fast; Hydrogen is balanced; Neon is smartest.";
+    $("brainNote").style.color = "";
+  }
+  setSwitch("claude_helper", b.claude.on && b.claude.installed);
+  $("claudeNote").textContent = b.claude.installed ? "Hands heavy coding and engineering jobs to Claude Code on your Claude plan."
+                                                   : "Not installed yet: run install_claude_helper.bat in Emi's folder.";
+}
+$("modelSel").onchange = e => call("set_setting", "model", e.target.value);
+async function loadVoices() {
+  const v = await call("voice_info"); if (!v || !v.length) return;
+  const sel = $("voiceSel"); sel.innerHTML = "";
+  v.slice(1).forEach(g => { const og = document.createElement("optgroup"); og.label = g.group;
+    g.items.forEach(it => og.appendChild(new Option(it.label, it.value, false, it.value === v[0].current))); sel.appendChild(og); });
+}
+$("voiceSel").onchange = e => call("set_voice", e.target.value);
+$("designToggle").onclick = () => $("designForm").classList.toggle("show");
+$("designBtn").onclick = async () => {
+  const d = $("designDesc").value.trim(); if (!d) return $("designDesc").focus();
+  $("designBtn").disabled = true; $("designNote").textContent = "Creating your voice…";
+  const r = await call("design_voice", d, $("designName").value.trim());
+  $("designBtn").disabled = false;
+  $("designNote").textContent = r && r.ok ? "Done! Playing a sample now." : "Couldn't create it: " + ((r && r.error) || "unknown error");
+  $("designNote").className = "note" + (r && r.ok ? "" : " warn");
+  if (r && r.ok) loadVoices();
+};
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+async function loadMemories() {
+  const items = (await call("memories")) || []; const box = $("memList");
+  if (!items.length) { box.innerHTML = `<p class="empty">Nothing saved yet.</p>`; return; }
+  box.innerHTML = items.map(m => `<div class="mem"><span>${esc(m.text)}</span><button title="Forget this" data-id="${esc(m.id)}">✕</button></div>`).join("");
+  box.querySelectorAll("button").forEach(b => b.onclick = async () => { await call("forget", b.dataset.id); loadMemories(); });
+}
+let booted = false;
+async function boot() { if (booted || !api()) return; booted = true; const s = await call("ready_control"); if (s) window.emi.settings(s); }
+window.addEventListener("pywebviewready", boot); boot();
+</script>
+</body>
+</html>

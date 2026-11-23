@@ -1,0 +1,136 @@
+# ─────────────────────────────────────────────────────────────
+#  Emi — your personal PC assistant
+#  Edit this file, save, and restart Emi. API keys go in .env (not here).
+# ─────────────────────────────────────────────────────────────
+
+assistant:
+  name: Emi
+  # How Whisper might spell the name when you say it. Add more if Emi misses you.
+  wake_words: ["emi", "emmy", "emmie", "emy", "ami", "amy", "aimee", "emme"]
+  personality: hype        # hype | chill | sleepy   (changes tone, not behaviour)
+  user_name: ""            # what Emi should call you, e.g. "Alex"
+  language: en             # en, de, ... (for non-English use non-".en" whisper models below)
+
+brain:
+  # gemini = Gemini API (default). Needs GEMINI_API_KEY in .env — get it at aistudio.google.com/apikey
+  # claude = Claude API (needs ANTHROPIC_API_KEY + API credit)
+  # local  = runs on your laptop via Ollama — nothing leaves the PC, but slower and less capable
+  provider: gemini
+  models:                       # starting model per provider — you can switch any time in the Control Center
+    gemini: gemini-4-hydrogen
+    claude: claude-sonnet-5-5
+    local: qwen3:8b
+  vision_model: ""              # model for "look at my screen"; empty = same as the main model
+  effort: low                   # how hard it thinks in Smart mode: low (snappy) | medium | high (slower, smarter)
+  speed: auto                   # auto = switches Flash / Hydrogen / Neon (+ Claude helper) | instant | smart
+  fast_model: auto              # the model Instant uses; auto = the newest "-flash" model on your key
+  auto_models:                  # models used in Auto mode; "auto" picks the newest matching model on your key
+    flash: auto                 # e.g. gemini-3.8-flash or gemini-3.1-flash-lite
+    hydrogen: auto              # e.g. gemini-4-hydrogen
+    neon: auto                  # e.g. gemini-4-neon
+  auto_efforts:
+    flash: minimal
+    hydrogen: low
+    neon: medium
+  auto_classifier: true         # fast Flash tie-breaker for ambiguous prompts; false = instant local rules only
+  instant_commands: true        # "open Spotify", "next song", "volume 30", "what time is it"… done without the AI
+  max_tokens: 4096
+  max_steps: 12                 # max tool calls for one request
+  temperature: null
+  # provider: custom → any OpenAI-compatible API you pick:
+  base_url: ""
+  api_key_env: ""
+  model: ""
+
+# Claude helper: hands heavy coding and software engineering jobs to Claude Code, which runs on your Claude
+# plan — no API key or credits needed. Install it with install_claude_helper.bat. Toggleable in Control Center.
+claude_code:
+  enabled: true
+  model: ""                     # empty = your plan's default; or e.g. sonnet / opus
+  timeout_minutes: 20
+  # How much Claude may do on its own. Empty = automatic:
+  #   ask mode  → acceptEdits (may create/edit files in the folder, no other commands; you approve each job)
+  #   full mode → bypassPermissions (anything, no questions)
+  permission_mode: ""
+
+hearing:
+  wake_mode: whisper       # whisper = say the name | off = hotkey only
+  stt: local               # local (on your CPU, private) | groq | openai (cloud)
+  local_model: base.en     # tiny.en (fastest) | base.en (balanced) | small.en (most accurate)
+  wake_model: tiny.en      # small + fast model used only to spot the wake word
+  mic_device: null         # null = Windows default mic. `python main.py --check` lists devices
+  sensitivity: 1.0         # raise (e.g. 1.5) if background noise triggers it, lower if it ignores you
+  silence_ms: 650          # how long a pause ends your sentence (lower = snappier, but may cut you off)
+  max_command_seconds: 20
+  conversation: true       # after "Hey Emi" she keeps listening for follow-ups until you press Alt+X
+  conversation_timeout: 180  # …or until nobody has said anything for this many seconds (0 = never)
+
+voice:
+  # Pick a voice any time in the Control Center (that choice wins over these defaults).
+  # edge = free natural voices (online) | gemini = expressive Gemini voices, or design your own (uses your Gemini key)
+  # elevenlabs = any ElevenLabs voice incl. a clone of you (ELEVENLABS_API_KEY) | kokoro = offline | sapi = Windows
+  engine: edge
+  edge_voice: en-US-EmmaMultilingualNeural   # list voices: .venv\Scripts\edge-tts --list-voices
+  gemini_voice: Kore                         # or a designed voice id like voice_abc123
+  gemini_tts_model: gemini-3.8-flash-tts
+  elevenlabs_voice_id: ""
+  elevenlabs_model: ""                       # empty = ElevenLabs' default
+  kokoro_voice: af_heart                     # or a blend: "af_heart:60,af_bella:40"
+  reply_mode: auto         # auto = speak, and also write it out when long | voice | text | both (Control Center)
+  speak_typed: false       # also speak answers to typed (Alt+Shift+S) questions
+  output_device: null
+
+hotkeys:
+  # summon: set by install_shortcuts.bat — works even when Emi isn't running (default Ctrl+Alt+Shift+E)
+  talk: ctrl+alt+space     # talk without saying the name (while Emi is running)
+  type: alt+shift+s        # type a question instead (silent ask)
+  stop: esc                # stop talking / cancel the current task
+  incognito: ctrl+alt+i    # pause memory, screen looks and saved history
+  crop: ctrl+alt+c         # drag around part of the screen, then ask about it
+  end: alt+x               # end the conversation: Emi stops listening for follow-up requests
+
+safety:
+  # ask  = Emi asks Allow / Deny before running commands, deleting, moving/overwriting files, closing apps,
+  #        killing processes, shutting down, pressing Enter for you…
+  # full = full access: she just does it, no questions. (Also switchable in the Control Center.)
+  #        Deleted files still go to the Recycle Bin.
+  mode: ask
+  # In "ask" mode, tools listed here never ask, e.g. [press_keys, move_file]
+  always_allow: []
+  voice_confirm: true      # answer "yes"/"no" out loud instead of clicking
+
+# Proactive mode (off by default — switch it on in the Control Center). Sends a screenshot to Gemini when the window
+# you're in changes (at most once per interval), never in incognito, gaming mode or while you're away.
+proactive:
+  enabled: false
+  every_seconds: 120
+  model: gemini-3.5-flash-lite    # cheap, fast model for the quick look; empty = your main model
+  cooldown_minutes: 10            # quiet time after you press "Not now"
+
+# Gaming mode: keeps the island away and pauses proactive checks while a game is in front. Voice still works.
+gaming:
+  auto: true
+  games: []                       # extra game .exe names, e.g. [myGame.exe]
+
+tools:
+  disabled: []             # tool names to turn off, e.g. [run_command, type_text]
+
+ui:
+  theme: glacier           # glacier (light, frosted) | midnight (dark). Also in the Control Center.
+  idle: hide               # hide = the island vanishes until you need it | pill = keep a small pill at the top
+
+# "Your usual" — say "Emi, start study mode". Steps run top to bottom.
+# Step types: open_app, open_url, open_path, media (play_pause/next/...), volume (0-100), wait (seconds), say
+routines:
+  study mode:
+    - open_app: Notion
+    - open_url: https://music.youtube.com
+    - volume: 30
+    - say: Study mode is on. Phone away, you've got this.
+  gaming:
+    - open_app: Steam
+    - open_app: Discord
+    - say: Have fun. I'll keep quiet.
+
+updates:
+  auto_restart: true       # when Emi's files are updated, she restarts by herself as soon as she's free

@@ -1,0 +1,27 @@
+# Secrets & personal data
+.env
+.env.*
+!.env.example
+data/
+
+# Virtual environments & local models
+.venv/
+venv/
+models/
+
+# Python & test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Build outputs (build_exe.bat / PyInstaller)
+dist/
+build/
+*.spec
+
+# Temporary exports & IDE files
+emi_source.zip
+emi_codebase.txt
+.vscode/
+.idea/
+Thumbs.db

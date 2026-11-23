@@ -1,0 +1,2 @@
+# Optional: Kokoro offline voice (voice.engine: kokoro). Also download the model files — see README.
+kokoro-onnx>=0.4

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Select an area</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; cursor: crosshair; user-select: none; }
+  img { position: fixed; inset: 0; width: 100vw; height: 100vh; object-fit: fill; pointer-events: none; }
+  #shade { position: fixed; inset: 0; background: rgba(8, 20, 26, .45); }
+  #box {
+    position: fixed; display: none; border: 2px solid #56E0D6; border-radius: 6px;
+    box-shadow: 0 0 0 9999px rgba(8, 20, 26, .45), 0 0 24px rgba(86, 224, 214, .45);
+  }
+  .selecting #shade { display: none; }
+  #hint {
+    position: fixed; left: 50%; top: 28px; transform: translateX(-50%); padding: 10px 16px; border-radius: 12px;
+    font: 500 14px/1.3 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #E8FBF7;
+    background: rgba(11, 37, 48, .9); box-shadow: inset 0 0 0 1px rgba(190, 255, 245, .15);
+  }
+  .selecting #hint { display: none; }
+</style>
+</head>
+<body>
+<img src="__IMAGE__" alt="">
+<div id="shade"></div>
+<div id="box"></div>
+<div id="hint">Drag around what you want to ask about. Esc cancels.</div>
+<script>
+const box = document.getElementById("box");
+let start = null;
+const api = () => window.pywebview && window.pywebview.api;
+function rect(a, b) {
+  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
+}
+addEventListener("mousedown", e => {
+  start = { x: e.clientX, y: e.clientY };
+  document.body.classList.add("selecting");
+  Object.assign(box.style, { display: "block", left: start.x + "px", top: start.y + "px", width: 0, height: 0 });
+});
+addEventListener("mousemove", e => {
+  if (!start) return;
+  const r = rect(start, { x: e.clientX, y: e.clientY });
+  Object.assign(box.style, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" });
+});
+addEventListener("mouseup", e => {
+  if (!start) return;
+  const r = rect(start, { x: e.clientX, y: e.clientY });
+  start = null;
+  if (r.w < 8 || r.h < 8) { document.body.classList.remove("selecting"); box.style.display = "none"; return; }
+  const W = innerWidth, H = innerHeight;   // send fractions so screen scaling never matters
+  api() && api().finish(r.x / W, r.y / H, (r.x + r.w) / W, (r.y + r.h) / H);
+});
+addEventListener("keydown", e => { if (e.key === "Escape") api() && api().cancel(); });
+</script>
+</body>
+</html>

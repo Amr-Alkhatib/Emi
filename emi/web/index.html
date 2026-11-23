@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en" data-theme="lagoon">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emi</title>
+<style>
+/* ── Themes ─────────────────────────────────────────────────────────────
+   One bold thing: the orb, a glossy liquid bubble whose colour and motion
+   are Emi's state. Everything around it stays quiet glass. */
+:root, [data-theme="lagoon"] { color-scheme: dark;
+  --bg-1: #0B2530; --bg-2: #0F3A44; --glass: rgba(210,255,250,.06); --glass-2: rgba(210,255,250,.10);
+  --line: rgba(190,255,245,.13); --ink: #E8FBF7; --ink-2: #9DC4BF; --ink-3: #6E9792;
+  --accent: #56E0D6; --sky: #6CC8FF; --leaf: #9BE37A; --amber: #FFC46B; --coral: #FF8C7A; --lilac: #B9A2FF;
+  --caustic: rgba(86,224,214,.16); --shadow-in: rgba(0,0,0,.25);
+}
+[data-theme="skyglass"] { color-scheme: light;
+  --bg-1: #EAF7FF; --bg-2: #C9E9FF; --glass: rgba(255,255,255,.55); --glass-2: rgba(255,255,255,.8);
+  --line: rgba(20,90,140,.15); --ink: #0D3049; --ink-2: #4A7290; --ink-3: #7896AB;
+  --accent: #0FA9C2; --sky: #1E8FFF; --leaf: #35A853; --amber: #D98A0B; --coral: #E0503F; --lilac: #7C5CFF;
+  --caustic: rgba(255,255,255,.7); --shadow-in: rgba(20,90,140,.12);
+}
+[data-theme="dusk"] { color-scheme: dark;
+  --bg-1: #1A1426; --bg-2: #2B1E3C; --glass: rgba(255,230,250,.06); --glass-2: rgba(255,230,250,.10);
+  --line: rgba(255,220,240,.13); --ink: #F8EFF6; --ink-2: #BDA9C2; --ink-3: #8C7896;
+  --accent: #FFB38A; --sky: #C9A7FF; --leaf: #A6E3A1; --amber: #FFD27A; --coral: #FF8A9A; --lilac: #C9A7FF;
+  --caustic: rgba(255,179,138,.14); --shadow-in: rgba(0,0,0,.3);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: auto; overflow: hidden; }
+body {
+  font: 400 14px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(120% 80% at 100% 0%, var(--caustic), transparent 55%),
+    radial-gradient(90% 60% at 0% 100%, color-mix(in srgb, var(--sky) 10%, transparent), transparent 60%),
+    linear-gradient(160deg, var(--bg-2), var(--bg-1));
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+#app { padding: 0 0 2px; }
+.selectable { user-select: text; }
+
+/* ── Header ─────────────────────────────────────────────── */
+header {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
+  padding: 12px 10px 12px 14px; cursor: default;
+}
+.who { min-width: 0; }
+.name {
+  font: 600 15px/1.2 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; letter-spacing: -.01em;
+  display: flex; align-items: center; gap: 8px;
+}
+.chip {
+  font: 500 11px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; padding: 3px 7px; border-radius: 99px;
+  background: var(--glass-2); color: var(--ink-2); border: 1px solid var(--line); display: none;
+}
+.incognito .chip.incog, .full .chip.fullc, .proactive .chip.pro { display: inline-block; }
+.full .chip.fullc { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+#status { color: var(--ink-2); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tools { display: flex; gap: 2px; }
+.icon {
+  width: 32px; height: 32px; border-radius: 9px; border: 0; background: transparent; color: var(--ink-2);
+  display: grid; place-items: center; cursor: pointer; transition: background .15s, color .15s;
+}
+.icon:hover { background: var(--glass-2); color: var(--ink); }
+.icon:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.icon svg { width: 17px; height: 17px; }
+.icon.on { color: var(--accent); background: var(--glass); }
+#stopBtn { display: none; }
+.busy #stopBtn { display: grid; }
+.busy #talkBtn { display: none; }
+
+/* ── The orb ────────────────────────────────────────────── */
+#orb {
+  --o1: var(--accent); --o2: var(--sky);
+  width: 38px; height: 38px; border-radius: 50%; position: relative; cursor: pointer;
+  background:
+    radial-gradient(60% 45% at 34% 26%, rgba(255,255,255,.85), rgba(255,255,255,0) 70%),    /* highlight */
+    radial-gradient(70% 70% at 70% 80%, color-mix(in srgb, var(--o2) 90%, white 10%), transparent 70%),
+    radial-gradient(100% 100% at 40% 35%, var(--o1), color-mix(in srgb, var(--o2) 70%, black 30%));
+  box-shadow:
+    inset 0 -4px 8px color-mix(in srgb, var(--o2) 60%, black 40%),
+    inset 0 2px 3px rgba(255,255,255,.35),
+    0 0 18px color-mix(in srgb, var(--o1) 45%, transparent);
+  transition: box-shadow .4s, filter .4s;
+  animation: breathe 4.5s ease-in-out infinite;
+}
+#orb::before { /* inner swirl, visible while thinking/working */
+  content: ""; position: absolute; inset: 4px; border-radius: 50%; opacity: 0;
+  background: conic-gradient(from 0deg, transparent, rgba(255,255,255,.55), transparent 40%, var(--o2), transparent 75%);
+  mix-blend-mode: soft-light; transition: opacity .3s;
+}
+#orb::after { /* ripple ring, visible while listening */
+  content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--o1); opacity: 0;
+}
+#orb[data-state="listening"] { --o1: var(--leaf); --o2: var(--accent); animation: none; }
+#orb[data-state="listening"]::after { animation: ripple 1.4s ease-out infinite; }
+#orb[data-state="thinking"] { --o1: var(--sky); --o2: var(--lilac); animation: none; }
+#orb[data-state="working"]  { --o1: var(--accent); --o2: var(--lilac); animation: none; }
+#orb[data-state="thinking"]::before, #orb[data-state="working"]::before { opacity: 1; animation: spin 1.6s linear infinite; }
+#orb[data-state="speaking"] { --o1: color-mix(in srgb, var(--accent) 70%, white 30%); --o2: var(--leaf); animation: talk .9s ease-in-out infinite; }
+#orb[data-state="loading"]  { --o1: var(--amber); --o2: var(--accent); }
+#orb[data-state="error"]    { --o1: var(--coral); --o2: color-mix(in srgb, var(--coral) 60%, black 40%); animation: none; }
+.incognito #orb { filter: saturate(.15) brightness(.95); }
+
+@keyframes breathe { 50% { transform: scale(.94); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes ripple { from { transform: scale(1); opacity: .8; } to { transform: scale(1.7); opacity: 0; } }
+@keyframes talk { 0%,100% { transform: scale(1); } 30% { transform: scale(1.08, .95); } 60% { transform: scale(.96, 1.05); } }
+
+/* ── Body ───────────────────────────────────────────────── */
+#body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s ease; }
+.open #body { grid-template-rows: 1fr; }
+#body > div { overflow: hidden; }
+.section { padding: 0 16px 14px; }
+#you { color: var(--ink-2); font-size: 12.5px; margin: 0 0 6px; display: none; }
+#you::before { content: "You: "; color: var(--ink-3); }
+#reply { font-size: 14.5px; line-height: 1.55; max-height: 46vh; overflow-y: auto; padding-right: 4px; }
+#reply:empty { display: none; }
+#reply p { margin: 0 0 .6em; } #reply p:last-child { margin: 0; }
+#reply code { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12.5px; background: var(--glass-2); padding: 1px 5px; border-radius: 5px; }
+#reply pre { font: 12.5px/1.45 "Cascadia Mono", Consolas, monospace; background: var(--shadow-in); padding: 10px 12px; border-radius: 10px; white-space: pre-wrap; margin: 0 0 .6em; }
+#reply ul { margin: 0 0 .6em; padding-left: 1.2em; }
+#reply a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+#reply::-webkit-scrollbar { width: 6px; } #reply::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+
+/* steps: a real sequence, so they get a connecting line */
+#steps { list-style: none; margin: 10px 0 0; padding: 0; display: none; }
+#steps.has { display: block; }
+#steps li { position: relative; padding: 0 0 6px 22px; font-size: 12.5px; color: var(--ink-2); }
+#steps li::before { /* rail */
+  content: ""; position: absolute; left: 6px; top: 14px; bottom: -2px; width: 1px; background: var(--line);
+}
+#steps li:last-child::before { display: none; }
+#steps .dot {
+  position: absolute; left: 0; top: 3px; width: 13px; height: 13px; border-radius: 50%;
+  border: 1.5px solid var(--ink-3); display: grid; place-items: center;
+}
+#steps li.run .dot { border-color: var(--accent); border-right-color: transparent; animation: spin .8s linear infinite; }
+#steps li.ok .dot { border-color: var(--leaf); background: var(--leaf); }
+#steps li.ok .dot::after { content: ""; width: 5px; height: 3px; border: 1.5px solid var(--bg-1); border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px,-1px); }
+#steps li.bad .dot { border-color: var(--coral); background: var(--coral); }
+#steps li.ok, #steps li.bad { color: var(--ink-3); }
+#steps li.run { color: var(--ink); }
+
+/* ── Needs you (confirm) ────────────────────────────────── */
+#confirm {
+  display: none; margin: 0 12px 12px; padding: 12px 14px; border-radius: 14px;
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent);
+}
+#confirm.show { display: block; }
+#confirm h3 { margin: 0 0 4px; font: 600 13.5px/1.35 "Segoe UI Variable Display", "Segoe UI", sans-serif; color: var(--ink); }
+#confirm pre {
+  margin: 6px 0 10px; font: 12px/1.45 "Cascadia Mono", Consolas, monospace; color: var(--ink);
+  background: var(--shadow-in); padding: 8px 10px; border-radius: 8px; white-space: pre-wrap; word-break: break-word;
+  max-height: 140px; overflow: auto;
+}
+#confirm pre:empty { display: none; }
+.row { display: flex; align-items: center; gap: 8px; }
+.hint { color: var(--ink-3); font-size: 12px; margin-left: auto; }
+.btn {
+  font: 600 13px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; padding: 9px 14px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--glass-2); color: var(--ink); cursor: pointer;
+}
+.btn:hover { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.btn.primary { background: var(--amber); border-color: transparent; color: #2A1A00; }
+.btn.primary:hover { filter: brightness(1.06); }
+
+/* ── Proactive idea ─────────────────────────────────────── */
+#idea {
+  display: none; margin: 0 12px 12px; padding: 12px 14px; border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+#idea.show { display: block; }
+#idea p { margin: 0 0 10px; font-size: 14px; }
+.btn.go { background: var(--accent); border-color: transparent; color: var(--bg-1); }
+
+/* ── Toast (reminders) ──────────────────────────────────── */
+#toast { display: none; margin: 0 12px 12px; padding: 10px 12px 10px 14px; border-radius: 12px; background: var(--glass-2); box-shadow: inset 0 0 0 1px var(--line); }
+#toast.show { display: flex; }
+#toast span { flex: 1; font-size: 13.5px; }
+
+/* ── Input dock ─────────────────────────────────────────── */
+#dock { display: none; padding: 0 12px 12px; }
+#dock.show { display: block; }
+.field {
+  display: flex; align-items: center; gap: 6px; padding: 5px 5px 5px 6px; border-radius: 14px;
+  background: var(--glass-2); box-shadow: inset 0 0 0 1px var(--line), inset 0 2px 6px var(--shadow-in);
+}
+.field:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent), inset 0 2px 6px var(--shadow-in); }
+.modes { display: flex; background: var(--shadow-in); border-radius: 9px; padding: 2px; }
+.modes button {
+  font: 500 12px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; border: 0; background: transparent; color: var(--ink-2);
+  padding: 6px 9px; border-radius: 7px; cursor: pointer;
+}
+.modes button.on { background: var(--glass-2); color: var(--ink); box-shadow: 0 1px 2px var(--shadow-in); }
+#ask { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; padding: 6px 2px; }
+#ask::placeholder { color: var(--ink-3); }
+.send { width: 30px; height: 30px; border-radius: 9px; border: 0; background: var(--accent); color: var(--bg-1); cursor: pointer; display: grid; place-items: center; }
+.send svg { width: 15px; height: 15px; }
+.dock-hint { color: var(--ink-3); font-size: 11.5px; margin: 6px 4px 0; }
+
+/* ── Menu & memories ────────────────────────────────────── */
+#menu, #memories { display: none; padding: 0 16px 14px; }
+#menu { max-height: 560px; overflow-y: auto; scrollbar-width: thin; }
+#designForm { display: none; margin-top: 8px; }
+#designForm.show { display: grid; gap: 8px; }
+#designForm input, #designForm textarea {
+  font: 13.5px/1.4 "Segoe UI Variable Text", "Segoe UI", sans-serif; color: var(--ink); background: var(--shadow-in);
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; resize: vertical;
+}
+#designForm textarea { min-height: 64px; }
+.linkbtn { background: none; border: 0; color: var(--accent); font: 500 12.5px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; padding: 6px 2px 0; cursor: pointer; }
+#everySeg { margin-top: 8px; display: none; }
+.proactive #everySeg { display: grid; }
+.menu #menu, .mem #memories { display: block; }
+.menu #main, .mem #main { display: none; }
+.group { margin: 0 0 14px; }
+.group > label { display: block; color: var(--ink-2); font-size: 12px; margin: 0 0 6px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--shadow-in); border-radius: 11px; padding: 3px; }
+.seg button { font: 500 12.5px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; border: 0; background: transparent; color: var(--ink-2); padding: 8px 6px; border-radius: 8px; cursor: pointer; }
+.seg button.on { background: var(--glass-2); color: var(--ink); box-shadow: 0 1px 3px var(--shadow-in); }
+.selectwrap { position: relative; }
+.selectwrap::after {
+  content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px; margin-top: -5px; pointer-events: none;
+  border-right: 1.5px solid var(--ink-2); border-bottom: 1.5px solid var(--ink-2); transform: rotate(45deg);
+}
+select {
+  width: 100%; appearance: none; -webkit-appearance: none; font: 500 13.5px/1.2 "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  color: var(--ink); background: var(--shadow-in); border: 1px solid var(--line); border-radius: 11px; padding: 10px 36px 10px 12px; cursor: pointer;
+}
+select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.note { color: var(--ink-3); font-size: 12px; margin: 6px 2px 0; }
+.note.warn { color: var(--amber); }
+.toggle { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.toggle small { display: block; color: var(--ink-3); font-size: 12px; }
+.switch { width: 38px; height: 22px; border-radius: 99px; background: var(--shadow-in); border: 1px solid var(--line); position: relative; cursor: pointer; flex: none; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--ink-2); transition: transform .2s, background .2s; }
+.switch.on { background: var(--accent); border-color: transparent; }
+.switch.on::after { transform: translateX(16px); background: white; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.keys { color: var(--ink-3); font-size: 12px; margin-top: 12px; line-height: 1.6; }
+kbd { font: 500 11px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; padding: 2px 5px; border-radius: 5px; background: var(--glass-2); border: 1px solid var(--line); color: var(--ink-2); }
+#memList { list-style: none; margin: 0; padding: 0; max-height: 48vh; overflow-y: auto; }
+#memList li { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+#memList li span { flex: 1; }
+#memList .icon { width: 26px; height: 26px; }
+.empty { color: var(--ink-2); font-size: 13.5px; }
+.back { margin: 0 0 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div id="orb" data-state="loading" title="Talk to me" role="button" aria-label="Talk"></div>
+    <div class="who pywebview-drag-region" title="Drag to move">
+      <div class="name"><span id="name">Emi</span><span class="chip incog">Incognito</span><span class="chip fullc" title="Emi acts without asking first">Full access</span><span class="chip pro" title="Emi glances at your screen now and then to offer help">Proactive</span></div>
+      <div id="status" aria-live="polite">Waking up…</div>
+    </div>
+    <div class="tools">
+      <button class="icon" id="typeBtn" title="Type a question (Alt+Shift+S)" aria-label="Type a question">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2.5" y="6" width="19" height="12" rx="3"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"/></svg>
+      </button>
+      <button class="icon" id="talkBtn" title="Talk (Ctrl+Alt+Space)" aria-label="Talk">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+      </button>
+      <button class="icon" id="stopBtn" title="Stop (Esc)" aria-label="Stop">
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2.5"/></svg>
+      </button>
+      <button class="icon" id="menuBtn" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>
+      </button>
+      <button class="icon" id="foldBtn" title="Fold away" aria-label="Fold away">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 12h12"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="body"><div>
+    <div id="main">
+      <div class="section">
+        <p id="you" class="selectable"></p>
+        <div id="reply" class="selectable"></div>
+        <ul id="steps"></ul>
+      </div>
+    </div>
+
+    <div id="menu">
+      <div class="group">
+        <label for="modelSel" id="brainLabel">Model</label>
+        <div class="selectwrap"><select id="modelSel" aria-label="Model"><option>Loading…</option></select></div>
+        <p class="note" id="brainNote"></p>
+      </div>
+      <div class="group">
+        <label for="voiceSel">Voice</label>
+        <div class="selectwrap"><select id="voiceSel" aria-label="Voice"><option>Loading…</option></select></div>
+        <button class="linkbtn" id="designToggle">Design my own voice</button>
+        <div id="designForm">
+          <input id="designName" placeholder="Name, e.g. Emi" maxlength="60">
+          <textarea id="designDesc" placeholder="Describe the voice, e.g. a young, energetic woman with a light British accent who sounds like she's smiling"></textarea>
+          <div class="row"><button class="btn go" id="designBtn">Create voice</button><span class="hint" id="designNote">Uses your Gemini key</span></div>
+        </div>
+      </div>
+      <div class="group">
+        <label>Personality</label>
+        <div class="seg" id="persSeg">
+          <button data-v="hype">Hype</button><button data-v="chill">Chill</button><button data-v="sleepy">Sleepy</button>
+        </div>
+      </div>
+      <div class="group">
+        <label>Theme</label>
+        <div class="seg" id="themeSeg">
+          <button data-v="lagoon">Lagoon</button><button data-v="skyglass">Skyglass</button><button data-v="dusk">Dusk</button>
+        </div>
+      </div>
+      <div class="toggle"><div>Incognito<small>No new memories, screen looks or saved chat</small></div><div class="switch" id="incogSw" role="switch" tabindex="0"></div></div>
+      <div class="toggle"><div>Speak answers<small>Read replies to voice requests out loud</small></div><div class="switch" id="speakSw" role="switch" tabindex="0"></div></div>
+      <div class="toggle" id="proToggle"><div>Proactive suggestions<small>Glances at your screen now and then and offers one idea</small>
+        <div class="seg" id="everySeg"><button data-v="60">Every min</button><button data-v="120">2 min</button><button data-v="300">5 min</button></div></div>
+        <div class="switch" id="proSw" role="switch" tabindex="0"></div></div>
+      <div class="toggle"><div>Gaming mode<small>Hides the card and stays quiet while you play</small></div><div class="switch" id="gameSw" role="switch" tabindex="0"></div></div>
+      <div class="toggle"><div>Claude helper<small id="claudeNote">Hands big jobs to Claude Code on your Claude plan</small></div><div class="switch" id="claudeSw" role="switch" tabindex="0"></div></div>
+      <div class="toggle"><div>Ask before risky actions<small>Off gives Emi full access: she acts without asking</small></div><div class="switch" id="askSw" role="switch" tabindex="0"></div></div>
+      <div class="links">
+        <button class="btn" id="memBtn">Memories</button>
+        <button class="btn" id="dataBtn">Open data folder</button>
+        <button class="btn" id="quitBtn">Quit</button>
+      </div>
+      <div class="keys" id="keys"></div>
+    </div>
+
+    <div id="memories">
+      <button class="btn back" id="memBack">Back</button>
+      <ul id="memList"></ul>
+    </div>
+  </div></div>
+
+  <div id="toast" role="status"><span id="toastText"></span><button class="btn" id="toastBtn">Dismiss</button></div>
+
+  <div id="idea" role="status">
+    <p id="ideaText"></p>
+    <div class="row"><button class="btn" id="ideaNo">Not now</button><button class="btn go" id="ideaYes">Do it</button></div>
+  </div>
+
+  <div id="confirm" role="alertdialog" aria-labelledby="cTitle">
+    <h3 id="cTitle"></h3>
+    <pre id="cBody"></pre>
+    <div class="row">
+      <button class="btn" id="denyBtn">Deny</button>
+      <button class="btn primary" id="allowBtn">Allow</button>
+      <span class="hint" id="cHint">or say yes or no</span>
+    </div>
+  </div>
+
+  <div id="dock">
+    <div class="field">
+      <div class="modes" id="modes" title="Tab switches mode">
+        <button data-m="ask" class="on">Ask</button><button data-m="screen">Screen</button><button data-m="crop">Crop</button>
+      </div>
+      <input id="ask" placeholder="Ask or tell Emi to do something" autocomplete="off" spellcheck="true">
+      <button class="send" id="sendBtn" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+      </button>
+    </div>
+    <div class="dock-hint" id="dockHint">Enter to send, Tab to switch mode, Esc to close. Crop lets you drag around part of the screen.</div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const app = $("app"), root = document.documentElement;
+const S = { busy: false, mode: "ask", confirmId: null, hideAfter: 25, foldTimer: null, idleHint: "", name: "Emi" };
+const api = () => (window.pywebview && window.pywebview.api) || null;
+const call = (fn, ...a) => { const x = api(); return x && x[fn] ? x[fn](...a) : Promise.resolve(null); };
+
+/* keep the native window exactly as tall as the card */
+let fitT = null;
+new ResizeObserver(() => { clearTimeout(fitT); fitT = setTimeout(() => call("fit", Math.ceil(app.getBoundingClientRect().height)), 16); }).observe(app);
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function md(src) {
+  let s = esc(src || "");
+  const blocks = [];
+  s = s.replace(/```[\w-]*\n?([\s\S]*?)```/g, (_, c) => { blocks.push(`<pre>${c.trim()}</pre>`); return `\u0000${blocks.length - 1}\u0000`; });
+  s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>")
+       .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
+       .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>')
+       .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2">$2</a>');
+  const paras = s.split(/\n{2,}/).map(p => {
+    const lines = p.split("\n");
+    if (lines.every(l => /^\s*[-•*]\s+/.test(l))) return "<ul>" + lines.map(l => "<li>" + l.replace(/^\s*[-•*]\s+/, "") + "</li>").join("") + "</ul>";
+    return "<p>" + lines.join("<br>") + "</p>";
+  }).join("");
+  return paras.replace(/<p>\u0000(\d+)\u0000<\/p>|\u0000(\d+)\u0000/g, (_, a, b) => blocks[a ?? b]);
+}
+
+function setOpen(open) { app.classList.toggle("open", open); }
+function hasContent() { return $("reply").textContent.trim() || $("steps").children.length || app.classList.contains("menu") || app.classList.contains("mem"); }
+function armFold() {
+  clearTimeout(S.foldTimer);
+  if (!S.hideAfter) return;
+  S.foldTimer = setTimeout(() => {
+    if (S.busy || S.confirmId || S.ideaId || $("dock").classList.contains("show") || app.matches(":hover")) return armFold();
+    setOpen(false); app.classList.remove("menu", "mem");
+    setTimeout(() => call("folded"), 350);
+  }, S.hideAfter * 1000);
+}
+
+/* ── called from Python ── */
+window.emi = {
+  status(kind, text) {
+    $("orb").dataset.state = kind;
+    S.busy = ["thinking", "working", "speaking"].includes(kind);
+    app.classList.toggle("busy", S.busy);
+    $("status").textContent = text || (kind === "idle" ? S.idleHint : kind === "listening" ? "Listening…" : "");
+    if (kind === "idle") armFold();
+  },
+  user(text) { $("you").textContent = text; $("you").style.display = text ? "block" : "none"; $("reply").innerHTML = ""; app.classList.remove("menu", "mem"); setOpen(true); },
+  reply(text) { $("reply").innerHTML = md(text); setOpen(true); armFold(); },
+  clearSteps() { $("steps").innerHTML = ""; $("steps").classList.remove("has"); },
+  addStep(id, label) {
+    const li = document.createElement("li"); li.id = "s" + id; li.className = "run";
+    li.innerHTML = '<span class="dot"></span>' + esc(label); $("steps").appendChild(li); $("steps").classList.add("has"); setOpen(true);
+  },
+  finishStep(id, ok) { const li = $("s" + id); if (li) li.className = ok ? "ok" : "bad"; },
+  confirm(id, text, voice) {
+    const [title, ...rest] = String(text).split("\n");
+    S.confirmId = id; $("cTitle").textContent = title; $("cBody").textContent = rest.join("\n");
+    $("cHint").style.display = voice ? "" : "none"; $("confirm").classList.add("show"); setOpen(true);
+  },
+  closeConfirm(id) { if (S.confirmId === id) { S.confirmId = null; $("confirm").classList.remove("show"); } },
+  toast(text) { $("toastText").textContent = text; $("toast").classList.add("show"); },
+  suggest(id, text) { S.ideaId = id; $("ideaText").textContent = text; $("idea").classList.add("show"); setOpen(true); },
+  closeSuggestion(id) { if (S.ideaId === id) { S.ideaId = null; $("idea").classList.remove("show"); } },
+  openInput() { $("dock").classList.add("show"); setTimeout(() => $("ask").focus(), 30); armFold(); },
+  wake() { armFold(); },
+  settings(o) {
+    if (o.name) { S.name = o.name; $("name").textContent = o.name; $("ask").placeholder = `Ask or tell ${o.name} to do something`; }
+    if (o.theme) root.dataset.theme = o.theme;
+    if (o.idleHint !== undefined) S.idleHint = o.idleHint;
+    if (o.hideAfter !== undefined) S.hideAfter = o.hideAfter;
+    if (o.keys) $("keys").innerHTML = o.keys;
+    if (o.personality) document.querySelectorAll("#persSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === o.personality));
+    if (o.theme) document.querySelectorAll("#themeSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === o.theme));
+    if (o.incognito !== undefined) { $("incogSw").classList.toggle("on", o.incognito); app.classList.toggle("incognito", o.incognito); }
+    if (o.speak !== undefined) $("speakSw").classList.toggle("on", o.speak);
+    if (o.fullAccess !== undefined) { $("askSw").classList.toggle("on", !o.fullAccess); app.classList.toggle("full", o.fullAccess); }
+    if (o.proactive !== undefined) { $("proSw").classList.toggle("on", o.proactive); app.classList.toggle("proactive", o.proactive); }
+    if (o.proactiveEvery !== undefined) document.querySelectorAll("#everySeg button").forEach(b => b.classList.toggle("on", +b.dataset.v === o.proactiveEvery));
+    if (o.gamingAuto !== undefined) $("gameSw").classList.toggle("on", o.gamingAuto);
+  },
+};
+
+/* ── user actions ── */
+function send() {
+  const t = $("ask").value.trim(); if (!t) return;
+  $("ask").value = ""; call("submit", t, S.mode);
+}
+function setMode(m) { S.mode = m; document.querySelectorAll("#modes button").forEach(b => b.classList.toggle("on", b.dataset.m === m)); }
+$("sendBtn").onclick = send;
+$("ask").addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); send(); }
+  else if (e.key === "Tab") { e.preventDefault(); const order = ["ask", "screen", "crop"]; const next = order[(order.indexOf(S.mode) + 1) % 3]; next === "crop" ? startCrop() : setMode(next); }
+  else if (e.key === "Escape") { $("dock").classList.remove("show"); }
+});
+document.querySelectorAll("#modes button").forEach(b => b.onclick = () => { if (b.dataset.m === "crop") return startCrop(); setMode(b.dataset.m); $("ask").focus(); });
+function startCrop() { setMode("crop"); call("crop"); }
+$("typeBtn").onclick = () => { const d = $("dock"); d.classList.toggle("show"); if (d.classList.contains("show")) $("ask").focus(); };
+$("talkBtn").onclick = () => call("talk");
+$("orb").onclick = () => (S.busy ? call("stop") : call("talk"));
+$("stopBtn").onclick = () => call("stop");
+$("foldBtn").onclick = () => { setOpen(false); $("dock").classList.remove("show"); app.classList.remove("menu", "mem"); setTimeout(() => call("folded"), 350); };
+$("menuBtn").onclick = () => { const on = !app.classList.contains("menu"); app.classList.remove("mem"); app.classList.toggle("menu", on); setOpen(on || !!hasContent()); if (on) { loadBrain(); loadVoices(); } };
+
+function prettyModel(id) {
+  return String(id).replace(/^gemini-/i, "Gemini ").replace(/^claude-/i, "Claude ")
+    .replace(/-preview$/, " (preview)").replace(/(\d)-(\d)/g, "$1.$2").replace(/-/g, " ")
+    .replace(/\b(flash|lite|pro|sonnet|haiku|opus|ultra|nano)\b/gi, w => w[0].toUpperCase() + w.slice(1));
+}
+async function loadBrain() {
+  const b = await call("brain_info"); if (!b) return;
+  $("brainLabel").textContent = `${b.label} model`;
+  const sel = $("modelSel"); sel.innerHTML = "";
+  for (const id of b.options) { const o = document.createElement("option"); o.value = id; o.textContent = prettyModel(id); o.selected = id === b.current; sel.appendChild(o); }
+  $("brainNote").textContent = b.error || ""; $("brainNote").classList.toggle("warn", !!b.error);
+  $("claudeSw").classList.toggle("on", b.claude.on && b.claude.installed);
+  $("claudeNote").textContent = b.claude.installed ? "Hands big jobs to Claude Code on your Claude plan"
+                                                   : "Not installed yet: run install_claude_helper.bat";
+}
+$("modelSel").onchange = e => call("set_setting", "model", e.target.value);
+$("claudeSw").onclick = () => call("set_setting", "claude_helper", !$("claudeSw").classList.contains("on")).then(loadBrain);
+$("allowBtn").onclick = () => S.confirmId && call("answer", S.confirmId, true);
+$("denyBtn").onclick = () => S.confirmId && call("answer", S.confirmId, false);
+$("toastBtn").onclick = () => $("toast").classList.remove("show");
+$("ideaYes").onclick = () => { if (S.ideaId) call("suggestion", S.ideaId, true); window.emi.closeSuggestion(S.ideaId); };
+$("ideaNo").onclick = () => { if (S.ideaId) call("suggestion", S.ideaId, false); window.emi.closeSuggestion(S.ideaId); };
+$("proSw").onclick = () => call("set_setting", "proactive", !$("proSw").classList.contains("on"));
+$("everySeg").onclick = e => { const v = e.target.dataset.v; if (v) call("set_setting", "proactive_every", +v); };
+$("gameSw").onclick = () => call("set_setting", "gaming_auto", !$("gameSw").classList.contains("on"));
+$("voiceSel").onchange = e => call("set_voice", e.target.value);
+$("designToggle").onclick = () => $("designForm").classList.toggle("show");
+$("designBtn").onclick = async () => {
+  const desc = $("designDesc").value.trim(); if (!desc) { $("designDesc").focus(); return; }
+  $("designBtn").disabled = true; $("designNote").textContent = "Creating… (about 10 seconds)";
+  const r = await call("design_voice", desc, $("designName").value.trim());
+  $("designBtn").disabled = false;
+  $("designNote").textContent = r && r.ok ? "Done! Playing a sample." : ("Couldn't create it: " + ((r && r.error) || "unknown error"));
+  if (r && r.ok) { $("designForm").classList.remove("show"); loadVoices(); }
+};
+async function loadVoices() {
+  const v = await call("voice_info"); if (!v || !v.length) return;
+  const sel = $("voiceSel"); sel.innerHTML = ""; const current = v[0].current;
+  for (const g of v.slice(1)) {
+    const og = document.createElement("optgroup"); og.label = g.group;
+    for (const it of g.items) { const o = document.createElement("option"); o.value = it.value; o.textContent = it.label; o.selected = it.value === current; og.appendChild(o); }
+    sel.appendChild(og);
+  }
+}
+$("persSeg").onclick = e => { const v = e.target.dataset.v; if (v) call("set_setting", "personality", v); };
+$("themeSeg").onclick = e => { const v = e.target.dataset.v; if (v) call("set_setting", "theme", v); };
+$("incogSw").onclick = () => call("set_setting", "incognito", !$("incogSw").classList.contains("on"));
+$("speakSw").onclick = () => call("set_setting", "speak_replies", !$("speakSw").classList.contains("on"));
+$("askSw").onclick = () => call("set_setting", "full_access", $("askSw").classList.contains("on"));
+document.querySelectorAll(".switch").forEach(s => s.addEventListener("keydown", e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); s.click(); } }));
+$("dataBtn").onclick = () => call("open_data");
+$("quitBtn").onclick = () => call("quit");
+$("memBtn").onclick = renderMemories;
+$("memBack").onclick = () => { app.classList.remove("mem"); app.classList.add("menu"); };
+async function renderMemories() {
+  app.classList.remove("menu"); app.classList.add("mem"); setOpen(true);
+  const items = (await call("memories")) || [];
+  const ul = $("memList"); ul.innerHTML = "";
+  if (!items.length) { ul.innerHTML = `<li class="empty">Nothing saved yet. Say “${esc(S.name)}, remember that…” to add something.</li>`; return; }
+  for (const m of items) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="selectable">${esc(m.text)}</span><button class="icon" title="Forget this" aria-label="Forget this"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
+    li.querySelector("button").onclick = async () => { await call("forget", m.id); renderMemories(); };
+    ul.appendChild(li);
+  }
+}
+document.addEventListener("click", e => {  /* links open in the real browser, not in this little window */
+  const a = e.target.closest("a"); if (a) { e.preventDefault(); call("open_link", a.getAttribute("href")); }
+});
+document.querySelector("header").addEventListener("dblclick", e => { if (!e.target.closest("button")) setOpen(!app.classList.contains("open")); });
+app.addEventListener("mouseleave", armFold);
+
+let booted = false;
+async function boot() {
+  if (booted || !api()) return;
+  booted = true;
+  const s = await call("ready");
+  if (s) window.emi.settings(s);
+  call("fit", Math.ceil(app.getBoundingClientRect().height));
+}
+window.addEventListener("pywebviewready", boot);
+boot();  /* in case the API was injected before this script ran */
+</script>
+</body>
+</html>

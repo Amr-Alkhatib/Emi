@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en" data-theme="glacier" data-solid>
+<head>
+<meta charset="utf-8">
+<title>Emi</title>
+<style>
+/* Emi's dynamic island. The window is cut to #island's shape, so only the island is ever visible.
+   It pops out of the top of the screen, morphs between a pill and a card, and hides itself. */
+:root, [data-theme="glacier"] {
+  color-scheme: light;
+  --ink: #0C2A4A; --ink-2: #4A6888; --ink-3: #8AA2BB;
+  --glass-a: rgba(255, 255, 255, .96); --glass-b: rgba(229, 241, 255, .93);
+  --edge: rgba(255, 255, 255, .95); --ring: rgba(96, 150, 220, .34);
+  --well: rgba(30, 90, 170, .07); --well-edge: rgba(30, 90, 170, .12);
+  --accent: #2F7BFF; --aqua: #33C2E6; --mint: #2BC79A; --amber: #E8962A; --coral: #EC5B56; --lilac: #8A78FF;
+  --shadow: 0 16px 36px -8px rgba(22, 66, 140, .38), 0 3px 10px rgba(22, 66, 140, .16);
+  --gloss: rgba(255, 255, 255, .9); --solid-bg: #E8F2FF; --notch: #F7FBFF;
+}
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --ink: #EAF3FF; --ink-2: #A8BFD9; --ink-3: #6F88A6;
+  --glass-a: rgba(30, 43, 66, .96); --glass-b: rgba(15, 23, 40, .95);
+  --edge: rgba(255, 255, 255, .14); --ring: rgba(120, 170, 255, .22);
+  --well: rgba(255, 255, 255, .05); --well-edge: rgba(255, 255, 255, .09);
+  --accent: #5B9BFF; --aqua: #4FD4F0; --mint: #3FDCAA; --amber: #F2B04E; --coral: #FF7A72; --lilac: #A496FF;
+  --shadow: 0 16px 40px -8px rgba(0, 0, 0, .6), 0 3px 10px rgba(0, 0, 0, .35);
+  --gloss: rgba(255, 255, 255, .16); --solid-bg: #121B2D; --notch: #18243A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; overflow: hidden; height: 100%; }
+body { position: relative; }
+body { font: 400 13.5px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: var(--ink);
+       -webkit-font-smoothing: antialiased; user-select: none; }
+
+#island {
+  position: relative; margin: 10px auto 0; width: 120px; height: 36px; border-radius: 30px; overflow: hidden;
+  background: linear-gradient(180deg, var(--glass-a), var(--glass-b));
+  box-shadow: var(--shadow), inset 0 0 0 1px var(--edge), 0 0 0 1px var(--ring);
+  opacity: 0; transform: translateY(-14px) scale(.92);
+  transition: width .5s cubic-bezier(.2, 1.25, .32, 1), height .5s cubic-bezier(.2, 1.15, .32, 1),
+              border-radius .45s ease, opacity .25s ease, transform .45s cubic-bezier(.2, 1.3, .3, 1);
+}
+#island.on { opacity: 1; transform: none; }
+/* solid style (used when Windows can't draw a see-through window): the window is cut to the island's shape */
+html[data-solid] body { background: var(--solid-bg); }
+html[data-solid] #island { opacity: 0; transform: none; box-shadow: inset 0 0 0 1px var(--edge); transition-delay: 0s, 0s, 0s, .22s, 0s; }
+html[data-solid] #island.on { opacity: 1; transition-delay: 0s; }
+#island.card { border-radius: 28px; }
+#island::before { /* glossy top light */
+  content: ""; position: absolute; left: 1px; right: 1px; top: 1px; height: 26px; border-radius: 30px 30px 50% 50% / 30px 30px 14px 14px;
+  background: linear-gradient(180deg, var(--gloss), rgba(255, 255, 255, 0)); opacity: .75; pointer-events: none;
+}
+#island::after { /* soft colour bloom that follows the state */
+  content: ""; position: absolute; width: 200px; height: 120px; left: -40px; top: -60px; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--state, var(--accent)) 28%, transparent), transparent);
+  pointer-events: none; transition: background .4s;
+}
+
+/* ── top row (always visible) ── */
+.top { position: relative; z-index: 1; display: flex; align-items: center; gap: 11px; height: 56px; padding: 0 12px 0 11px; white-space: nowrap; }
+#orb {
+  --o1: var(--aqua); --o2: var(--accent);
+  flex: none; width: 34px; height: 34px; border-radius: 50%; position: relative;
+  background:
+    radial-gradient(58% 42% at 35% 25%, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(70% 70% at 70% 82%, color-mix(in srgb, var(--o1) 85%, white 15%), transparent 72%),
+    radial-gradient(100% 100% at 40% 35%, var(--o1), color-mix(in srgb, var(--o2) 75%, #001 25%));
+  box-shadow: inset 0 -3px 7px color-mix(in srgb, var(--o2) 60%, #001 40%), inset 0 2px 3px rgba(255, 255, 255, .45),
+              0 3px 10px color-mix(in srgb, var(--o2) 45%, transparent);
+  transition: box-shadow .4s;
+}
+#orb::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; opacity: 0;
+  background: conic-gradient(from 0deg, transparent, rgba(255, 255, 255, .7), transparent 40%, var(--o2), transparent 75%);
+  mix-blend-mode: soft-light; transition: opacity .3s; }
+[data-state="listening"] #orb { --o1: #6FE3C8; --o2: var(--mint); }
+[data-state="thinking"] #orb, [data-state="working"] #orb { --o1: #8FB8FF; --o2: var(--lilac); }
+[data-state="thinking"] #orb::after, [data-state="working"] #orb::after { opacity: 1; animation: spin 1.4s linear infinite; }
+[data-state="speaking"] #orb { --o1: #7EE7FF; --o2: var(--accent); animation: talk .9s ease-in-out infinite; }
+[data-state="error"] #orb { --o1: #FF9C8F; --o2: var(--coral); }
+[data-state="loading"] #orb { --o1: #FFD08A; --o2: var(--amber); }
+[data-state="listening"] { --state: var(--mint); }
+[data-state="thinking"], [data-state="working"] { --state: var(--lilac); }
+[data-state="speaking"] { --state: var(--aqua); }
+[data-state="error"] { --state: var(--coral); }
+.incognito #orb { filter: saturate(.1) brightness(.95); }
+
+.label { min-width: 0; flex: 1; }
+#title { font: 600 13.5px/1.2 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.01em; }
+#sub { color: var(--ink-2); font-size: 12px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; max-width: 290px; }
+[data-state="thinking"] #sub, [data-state="working"] #sub {
+  background: linear-gradient(90deg, var(--ink-2) 0%, var(--ink-2) 40%, var(--ink) 50%, var(--ink-2) 60%, var(--ink-2) 100%);
+  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 1.8s linear infinite;
+}
+
+#wave { display: flex; align-items: center; gap: 3px; height: 28px; width: 0; overflow: hidden; transition: width .35s ease; }
+.wave-on #wave { width: 50px; }
+#wave i { flex: none; width: 4px; height: 4px; border-radius: 3px; background: linear-gradient(180deg, var(--aqua), var(--accent)); }
+[data-state="listening"] #wave i { background: linear-gradient(180deg, #7CF0D2, var(--mint)); }
+
+.mini { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 0; display: none; place-items: center; cursor: pointer;
+  color: var(--ink-2); background: var(--well); box-shadow: inset 0 0 0 1px var(--well-edge); }
+.mini:hover { color: var(--ink); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.mini svg { width: 15px; height: 15px; }
+.card .mini, .busy #stopBtn { display: grid; }
+.busy.card #stopBtn { display: grid; }
+#stopBtn { display: none; }
+
+/* ── card body ── */
+#body { position: relative; z-index: 1; padding: 0 18px 16px; opacity: 0; transition: opacity .25s ease .12s; max-height: 500px; overflow-y: auto; }
+.card #body { opacity: 1; }
+#body::-webkit-scrollbar { width: 6px; } #body::-webkit-scrollbar-thumb { background: var(--well-edge); border-radius: 6px; }
+.blk { display: none; }
+.blk.show { display: block; }
+#you { color: var(--ink-2); font-size: 12.5px; margin: 0 0 8px; }
+#you b { font-weight: 600; color: var(--ink-3); }
+#answer { font-size: 14.5px; line-height: 1.55; user-select: text; }
+#answer p { margin: 0 0 .6em; } #answer p:last-child { margin: 0; }
+#answer code { font: 12.5px "Cascadia Mono", Consolas, monospace; background: var(--well); padding: 1px 5px; border-radius: 6px; }
+#answer pre { font: 12.5px/1.45 "Cascadia Mono", Consolas, monospace; background: var(--well); box-shadow: inset 0 0 0 1px var(--well-edge);
+  padding: 10px 12px; border-radius: 12px; white-space: pre-wrap; margin: 0 0 .6em; user-select: text; }
+#answer ul { margin: 0 0 .6em; padding-left: 1.2em; }
+#answer a { color: var(--accent); }
+.tools { display: flex; gap: 6px; margin-top: 10px; }
+.chipbtn { font: 500 12px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; color: var(--ink-2); border: 0; border-radius: 99px; padding: 7px 11px;
+  background: var(--well); box-shadow: inset 0 0 0 1px var(--well-edge); cursor: pointer; }
+.chipbtn:hover { color: var(--ink); }
+
+#steps { list-style: none; margin: 0 0 10px; padding: 0; }
+#steps li { position: relative; padding: 0 0 6px 22px; font-size: 12.5px; color: var(--ink-2); }
+#steps li::before { content: ""; position: absolute; left: 6px; top: 15px; bottom: -1px; width: 1px; background: var(--well-edge); }
+#steps li:last-child::before { display: none; }
+#steps .dot { position: absolute; left: 0; top: 3px; width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
+#steps .run .dot { border-color: var(--accent); border-right-color: transparent; animation: spin .8s linear infinite; }
+#steps .ok .dot { border-color: var(--mint); background: var(--mint); }
+#steps .bad .dot { border-color: var(--coral); background: var(--coral); }
+#steps .run { color: var(--ink); }
+
+.panel { margin-top: 10px; padding: 12px 14px; border-radius: 18px; background: var(--well); box-shadow: inset 0 0 0 1px var(--well-edge); }
+.panel.warn { background: color-mix(in srgb, var(--amber) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent); }
+.panel h3 { margin: 0 0 4px; font: 600 13.5px/1.35 "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+.panel pre { margin: 6px 0 10px; font: 12px/1.45 "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word;
+  background: var(--well); padding: 8px 10px; border-radius: 10px; max-height: 140px; overflow: auto; }
+.panel pre:empty { display: none; }
+.panel p { margin: 0 0 10px; }
+.row { display: flex; align-items: center; gap: 8px; }
+.hint { margin-left: auto; color: var(--ink-3); font-size: 12px; }
+.btn { font: 600 13px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; border: 0; border-radius: 99px; padding: 9px 16px; cursor: pointer;
+  color: var(--ink); background: var(--glass-a); box-shadow: inset 0 0 0 1px var(--well-edge), 0 1px 2px rgba(0, 0, 0, .06); }
+.btn.go { color: white; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 70%, white 30%), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 4px 12px -3px color-mix(in srgb, var(--accent) 70%, transparent); }
+.btn.ok { color: #2a1800; background: linear-gradient(180deg, #FFD592, var(--amber)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5); }
+
+#dock .field { display: flex; align-items: center; gap: 6px; padding: 5px; border-radius: 99px; background: var(--well); box-shadow: inset 0 0 0 1px var(--well-edge); }
+#dock .field:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.modes { display: flex; border-radius: 99px; padding: 2px; background: var(--well); }
+.modes button { font: 500 12px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; border: 0; background: none; color: var(--ink-2); padding: 7px 10px; border-radius: 99px; cursor: pointer; }
+.modes button.on { color: var(--ink); background: var(--glass-a); box-shadow: 0 1px 3px rgba(0, 0, 0, .1); }
+#ask { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--ink); font: inherit; font-size: 14px; padding: 6px 4px; }
+#ask::placeholder { color: var(--ink-3); }
+.send { width: 32px; height: 32px; border: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: white;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 70%, white 30%), var(--accent)); }
+.send svg { width: 15px; height: 15px; }
+.dockhint { color: var(--ink-3); font-size: 11.5px; margin: 7px 6px 0; }
+
+/* ── the notch: Emi's resting place at the top edge of the screen ──
+   tucked = a slim glowing sliver · peek = drops down with the orb when your mouse arrives · menu = the quick menu */
+@property --s { syntax: "<length>"; inherits: false; initial-value: 0px; }
+#notch {
+  --s: 0px; --fill: var(--notch);
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 2;
+  width: 92px; height: 0; border-radius: 0 0 5px 5px; background: var(--fill); cursor: pointer;
+  box-shadow: inset 0 -1.5px 0 color-mix(in srgb, var(--accent) 55%, transparent), inset 0 0 0 1px var(--edge);
+  transition: width .42s cubic-bezier(.2, 1.15, .32, 1), height .42s cubic-bezier(.2, 1.1, .32, 1),
+              border-radius .35s ease, --s .35s ease, background-color .3s;
+}
+#notch::before, #notch::after { content: ""; position: absolute; top: 0; width: var(--s); height: var(--s); pointer-events: none; }
+#notch::before { left: calc(-1 * var(--s)); background: radial-gradient(circle at 0 100%, transparent calc(var(--s) - .6px), var(--fill) var(--s)); }
+#notch::after { right: calc(-1 * var(--s)); background: radial-gradient(circle at 100% 100%, transparent calc(var(--s) - .6px), var(--fill) var(--s)); }
+#notch[data-s="tucked"] { --s: 5px; height: 5px; --fill: color-mix(in srgb, var(--accent) 78%, var(--aqua)); box-shadow: none; }
+#notch[data-s="peek"] { --s: 10px; width: 120px; height: 40px; border-radius: 0 0 16px 16px; }
+#notch[data-s="menu"] { --s: 14px; width: 432px; border-radius: 0 0 26px 26px; cursor: default; }
+#notch[data-s="gone"] { height: 0; --s: 0px; }
+.paused #notch[data-s="tucked"] { --fill: color-mix(in srgb, var(--ink-3) 70%, transparent); }
+
+.nub { position: absolute; left: 0; right: 0; bottom: 6px; display: flex; justify-content: center; align-items: center; gap: 7px;
+  opacity: 0; transition: opacity .2s ease; pointer-events: none; }
+[data-s="peek"] .nub { opacity: 1; transition-delay: .12s; }
+.nub .orb-s { width: 24px; height: 24px; }
+.nub .ldot { width: 6px; height: 6px; }
+
+.orb-s { flex: none; border-radius: 50%; position: relative;
+  background: radial-gradient(58% 42% at 35% 25%, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 70%),
+              radial-gradient(100% 100% at 40% 35%, var(--aqua), color-mix(in srgb, var(--accent) 75%, #001 25%));
+  box-shadow: inset 0 -2px 5px color-mix(in srgb, var(--accent) 60%, #001 40%), inset 0 1px 2px rgba(255, 255, 255, .45),
+              0 2px 8px color-mix(in srgb, var(--accent) 40%, transparent); }
+.incognito .orb-s { filter: saturate(.1) brightness(.95); }
+.ldot { flex: none; border-radius: 50%; background: var(--mint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mint) 22%, transparent); }
+.paused .ldot { background: var(--ink-3); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink-3) 20%, transparent); }
+
+#menu { position: absolute; top: 0; left: 0; width: 432px; padding: 14px 14px 12px; opacity: 0; visibility: hidden;
+  transition: opacity .2s ease, visibility 0s .2s; }
+[data-s="menu"] #menu { opacity: 1; visibility: visible; transition: opacity .25s ease .16s, visibility 0s; }
+.mhead { display: flex; align-items: center; gap: 10px; padding: 0 2px 12px; }
+.mhead .orb-s { width: 30px; height: 30px; }
+.mhead b { font: 600 15.5px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.01em; }
+.mstatus { margin-left: auto; font-size: 11.5px; color: var(--ink-2); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listen { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 16px; background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--well-edge); font-size: 13px; }
+.listen .ldot { width: 8px; height: 8px; }
+#mListen { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pbtn { font: 600 12.5px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; border: 0; border-radius: 99px; padding: 8px 14px; cursor: pointer;
+  color: var(--ink); background: var(--glass-a); box-shadow: inset 0 0 0 1px var(--well-edge), 0 1px 2px rgba(0, 0, 0, .08); }
+.pbtn:hover { background: color-mix(in srgb, var(--accent) 12%, var(--glass-a)); }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0; min-height: 84px; padding: 11px 10px 9px;
+  border: 0; border-radius: 16px; text-align: left; cursor: pointer; color: var(--ink); background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--well-edge); font: inherit; transition: background .15s, box-shadow .15s; }
+.tile:hover { background: color-mix(in srgb, var(--accent) 11%, var(--well)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
+.tile svg { width: 20px; height: 20px; color: var(--accent); margin-bottom: auto; }
+.tile b { font: 600 12.5px/1.2 "Segoe UI Variable Text", "Segoe UI", sans-serif; margin-top: 10px; }
+.tile small { font-size: 10.5px; line-height: 1.3; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.wide { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.wbtn { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border: 0; border-radius: 14px; cursor: pointer; color: var(--ink);
+  background: var(--well); box-shadow: inset 0 0 0 1px var(--well-edge); font: 600 12.5px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+.wbtn:hover { background: color-mix(in srgb, var(--accent) 11%, var(--well)); }
+.wbtn svg { width: 17px; height: 17px; color: var(--ink-2); flex: none; }
+.wbtn em { margin-left: auto; font-style: normal; font-weight: 500; font-size: 11.5px; color: var(--ink-3); }
+.wbtn.on em { color: var(--mint); }
+.recent h4 { margin: 14px 4px 4px; font: 600 11.5px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif; color: var(--ink-3); }
+.recent ul { list-style: none; margin: 0; padding: 0; }
+.recent li { display: flex; align-items: center; gap: 9px; padding: 8px 6px; border-radius: 10px; cursor: pointer; font-size: 12.5px; }
+.recent li:hover { background: var(--well); }
+.recent li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent li time { font-size: 11px; color: var(--ink-3); flex: none; }
+.recent li svg { width: 14px; height: 14px; color: var(--ink-3); flex: none; }
+.recent .none { color: var(--ink-3); cursor: default; } .recent .none:hover { background: none; }
+
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes talk { 0%, 100% { transform: scale(1); } 35% { transform: scale(1.07, .95); } 65% { transform: scale(.96, 1.05); } }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition-duration: .01s !important; } }
+</style>
+</head>
+<body>
+<div id="notch" data-s="gone" aria-label="Emi">
+  <div class="nub"><span class="orb-s"></span><span class="ldot"></span></div>
+  <div id="menu" role="menu">
+    <div class="mhead"><span class="orb-s"></span><b id="mName">Emi</b><span class="mstatus" id="mStatus">Ready</span></div>
+    <div class="listen"><span class="ldot"></span><span id="mListen">Listening for “Hey Emi”</span><button class="pbtn" id="mPause">Pause</button></div>
+    <div class="tiles"><button class="tile" data-a="talk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg><b>Talk</b><small data-key="talk"></small></button><button class="tile" data-a="type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 4v-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><b>Type</b><small data-key="type"></small></button><button class="tile" data-a="screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/></svg><b>My screen</b><small data-key="Ask about it">Ask about it</small></button><button class="tile" data-a="area"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 9V5h4M16 5h4v4M20 15v4h-4M8 19H4v-4"/></svg><b>An area</b><small data-key="crop"></small></button><button class="tile" data-a="translate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M8.5 4v2c0 4-2 7-4.5 8.5M6.5 10c1 2.2 3 3.8 5.5 4.5M13 20l4-9 4 9M14.5 17h5"/></svg><b>Translate</b><small data-key="an area">an area</small></button><button class="tile" data-a="explain"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><b>Explain</b><small data-key="an area">an area</small></button><button class="tile" data-a="copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg><b>Copy text</b><small data-key="from an area">from an area</small></button><button class="tile" data-a="clipboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="16" rx="2.5"/><path d="M9 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M9 11h6M9 15h4"/></svg><b>Clipboard</b><small data-key="Explain it">Explain it</small></button></div>
+    <div class="wide"><button class="wbtn" data-a="incognito" id="mIncog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M6 12l1.5-6h9L18 12"/><circle cx="7.5" cy="17" r="2.5"/><circle cx="16.5" cy="17" r="2.5"/><path d="M10 17h4"/></svg>Incognito<em id="mIncogState">Off</em></button>
+      <button class="wbtn" data-a="control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Control Center</button></div>
+    <div class="recent"><h4>Recent</h4><ul id="mRecent"></ul></div>
+  </div>
+</div>
+<div id="island" data-state="idle" role="status" aria-live="polite">
+  <div class="top" id="top">
+    <div id="orb" title="Talk to Emi"></div>
+    <div class="label"><div id="title">Emi</div><div id="sub">Say “Hey Emi”</div></div>
+    <div id="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <button class="mini" id="stopBtn" title="Stop (Esc)" aria-label="Stop"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2.5"/></svg></button>
+    <button class="mini" id="moreBtn" title="Control Center" aria-label="Open Control Center"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg></button>
+    <button class="mini" id="closeBtn" title="Dismiss (Esc)" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+  </div>
+  <div id="body"><div id="content">
+    <div class="blk" id="youBlk"><p id="you"></p></div>
+    <ul class="blk" id="steps"></ul>
+    <div class="blk" id="answerBlk"><div id="answer"></div>
+      <div class="tools"><button class="chipbtn" id="copyBtn">Copy</button><button class="chipbtn" id="sayBtn">Read aloud</button></div></div>
+    <div class="blk panel warn" id="confirm"><h3 id="cTitle"></h3><pre id="cBody"></pre>
+      <div class="row"><button class="btn" id="denyBtn">Deny</button><button class="btn ok" id="allowBtn">Allow</button><span class="hint" id="cHint">or say yes or no</span></div></div>
+    <div class="blk panel" id="idea"><p id="ideaText"></p>
+      <div class="row"><button class="btn" id="ideaNo">Not now</button><button class="btn go" id="ideaYes">Do it</button></div></div>
+    <div class="blk panel" id="toast"><p id="toastText"></p><div class="row"><button class="btn" id="toastBtn">OK</button></div></div>
+    <div class="blk" id="dock">
+      <div class="field">
+        <div class="modes" id="modes"><button data-m="ask" class="on">Ask</button><button data-m="screen">Screen</button><button data-m="crop">Crop</button></div>
+        <input id="ask" placeholder="Ask Emi anything" autocomplete="off">
+        <button class="send" id="sendBtn" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+      </div>
+      <div class="dockhint">Enter to send · Tab switches mode · Esc closes</div>
+    </div>
+  </div></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const island = $("island"), root = document.documentElement;
+const api = () => (window.pywebview && window.pywebview.api) || null;
+const call = (fn, ...a) => { const x = api(); return x && x[fn] ? x[fn](...a) : Promise.resolve(null); };
+const notch = $("notch");
+const WIN_W = 480;    // the window's fixed width (css px): wide enough for the quick menu and its shoulders
+const S = { state: "idle", shown: false, cur: { w: 120, h: 36 }, hideT: null, shrinkT: null, holdT: null, notchT: null,
+            answerHold: 0, ideaId: null, confirmId: null, mode: "ask", idleLook: "notch", fullscreen: false, notch: "gone",
+            winOn: false, animUntil: 0, placedH: 0, idleHint: "Say “Hey Emi”", paused: false, info: null,
+            level: 0, target: 0, answerText: "", solid: true, clipK: "", clipSeq: 0, menuAt: 0, blurT: null };
+const ACTIVE = ["listening", "thinking", "working", "speaking", "loading"];
+
+/* ── geometry: the notch at the top edge, the island (pill ↔ card) below it; the window follows ── */
+function isCard() { return ["answerBlk", "steps", "confirm", "idea", "toast", "dock"].some(id => $(id).classList.contains("show")); }
+function pillWidth() {
+  // add up the parts at their FINAL sizes (the waveform and stop button animate in, so measuring the row as it
+  // is would come out too narrow and the text would run into the waveform)
+  const lab = document.querySelector(".label");
+  lab.style.flex = "none"; lab.style.width = "max-content";
+  const text = Math.min(lab.scrollWidth, 290); lab.style.flex = ""; lab.style.width = "";
+  let w = 11 + 34 + 11 + text + 12 + 2;                       // padding, orb, gap, words, padding
+  if (island.classList.contains("wave-on")) w += 11 + 50;     // waveform
+  if (island.classList.contains("busy")) w += 11 + 30;        // stop button
+  w = Math.max(196, Math.min(Math.ceil(w), 440));
+  // while she's busy the pill only grows, so it doesn't wobble between "Thinking", "Speaking" and captions
+  if (ACTIVE.includes(S.state) && !isCard()) w = Math.max(w, S.stickyW || 0);
+  S.stickyW = w;
+  return w;
+}
+function layout() {
+  if (S.shown) {
+    const card = isCard();
+    island.classList.toggle("card", card);
+    const w = card ? 460 : pillWidth();
+    const h = card ? Math.min(620, 56 + $("content").scrollHeight + 16) : 56;
+    island.style.width = w + "px"; island.style.height = h + "px";
+    S.cur = { w, h };
+  }
+  if (S.notch === "menu") notch.style.height = $("menu").scrollHeight + "px";
+  fit();
+}
+function notchHeight() { return { tucked: 5, peek: 40, menu: $("menu").scrollHeight, gone: 0 }[S.notch] || 0; }
+function wantedHeight() { return Math.ceil(Math.max(S.shown ? 10 + S.cur.h : 0, notchHeight() + 16) + 8); }
+function fit() {   // grow the window now, shrink it once the animation is over
+  const h = wantedHeight();
+  if (h > S.placedH) { S.placedH = h; call("place", WIN_W, h, devicePixelRatio); }
+  clearTimeout(S.shrinkT);
+  S.shrinkT = setTimeout(() => { const h2 = wantedHeight(); if (h2 !== S.placedH) { S.placedH = h2; call("place", WIN_W, h2, devicePixelRatio); } }, 650);
+  kick();
+}
+new ResizeObserver(() => (S.shown || S.notch === "menu") && layout()).observe($("content"));
+new ResizeObserver(() => S.notch === "menu" && layout()).observe($("menu"));
+
+function anyVisible() { return S.shown || S.notch !== "gone"; }
+function syncWindow() {   // tell Python when the window has something to show (it cuts the window to these shapes)
+  if (anyVisible() && !S.winOn) { S.winOn = true; S.clipK = ""; call("showing"); }
+  else if (!anyVisible() && S.winOn) setTimeout(() => { if (!anyVisible() && S.winOn) { S.winOn = false; call("hidden"); } }, 450);
+  kick();
+}
+
+function show() {
+  clearTimeout(S.hideT);
+  if (S.shown) return layout();
+  S.shown = true; S.clipK = "";
+  setNotch("gone");
+  syncWindow();
+  island.style.transition = "none"; island.style.width = "120px"; island.style.height = "36px"; S.cur = { w: 120, h: 36 };
+  void island.offsetWidth; island.style.transition = "";
+  island.classList.add("on");
+  requestAnimationFrame(layout);
+}
+function hide(now) {
+  clearTimeout(S.hideT);
+  S.hideT = setTimeout(() => {
+    if (ACTIVE.includes(S.state) || S.confirmId || S.ideaId || ["dock", "answerBlk", "toast"].some(id => $(id).classList.contains("show"))) return;
+    island.classList.remove("on");
+    island.style.width = "120px"; island.style.height = "36px"; S.cur = { w: 120, h: 36 };
+    kick();
+    setTimeout(() => { if (!island.classList.contains("on")) { S.shown = false; clearCard(); refreshNotch(); syncWindow(); fit(); } }, 380);
+  }, now ? 0 : 1400);
+}
+function clearCard() { ["answerBlk", "steps", "toast", "youBlk"].forEach(id => $(id).classList.remove("show")); }
+function setText(title, sub) { $("title").textContent = title; $("sub").textContent = sub || ""; }
+
+/* ── the notch: tucked sliver → peeks when your mouse reaches it → quick menu on click ── */
+function notchAllowed() { return S.idleLook === "notch" && !S.fullscreen && !S.shown; }
+function setNotch(st) {
+  if (st !== "gone" && !notchAllowed()) st = "gone";
+  if (S.notch === st) return;
+  S.notch = st; notch.dataset.s = st;
+  notch.style.height = st === "menu" ? $("menu").scrollHeight + "px" : "";
+  syncWindow(); fit();
+}
+function refreshNotch() { setNotch(notchAllowed() ? (S.notch === "gone" ? "tucked" : S.notch) : "gone"); }
+function openMenu() {
+  if (!notchAllowed()) return;
+  clearTimeout(S.notchT); clearTimeout(S.blurT);
+  S.menuAt = Date.now();
+  renderMenu(S.info);
+  setNotch("menu");
+  // No focus juggling here: your click already gave the window the keyboard. Forcing it again made the page
+  // lose focus for a moment, and that "blur" closed the menu the instant it opened.
+  call("menu_info").then(i => { if (i) { S.info = i; renderMenu(i); layout(); } });
+}
+function closeMenu(giveBackFocus, why) {
+  if (S.notch !== "menu") return;
+  clearTimeout(S.blurT);
+  setNotch(notch.matches(":hover") ? "peek" : "tucked");
+  call("menu_closed", why || "");
+  if (giveBackFocus) call("unfocus");
+}
+notch.addEventListener("mouseenter", () => {
+  clearTimeout(S.notchT);
+  if (S.notch !== "menu") call("remember_app");   // the app you're in now gets the keyboard back when the menu closes
+  if (S.notch === "tucked") S.notchT = setTimeout(() => setNotch("peek"), 90);
+});
+notch.addEventListener("mouseleave", () => {
+  clearTimeout(S.notchT);
+  if (S.notch === "peek") S.notchT = setTimeout(() => setNotch("tucked"), 450);
+  else if (S.notch === "menu") S.notchT = setTimeout(() => { if (!notch.matches(":hover")) closeMenu(true, "mouse left"); }, 6000);
+});
+notch.addEventListener("click", e => { if (S.notch !== "menu") openMenu(); });
+/* Clicking somewhere else closes the menu. Windows and WebView2 also fire short "blur" blips while a window is
+   being activated, so a blur only counts if it lasts, comes after the menu has settled, and Windows agrees that
+   another app is now in front. */
+window.addEventListener("blur", () => {
+  if (S.notch !== "menu") return;
+  clearTimeout(S.blurT);
+  S.blurT = setTimeout(async () => {
+    if (S.notch !== "menu" || document.hasFocus()) return;
+    const front = await call("island_in_front");
+    if (S.notch === "menu" && !document.hasFocus() && front === false) closeMenu(false, "clicked elsewhere");
+  }, Math.max(300, S.menuAt + 800 - Date.now()));
+});
+window.addEventListener("focus", () => clearTimeout(S.blurT));
+
+function ago(t) {
+  const m = Math.max(0, Math.round((Date.now() - Date.parse(t)) / 60000));
+  return m < 1 ? "now" : m < 60 ? m + " min" : m < 1440 ? Math.round(m / 60) + " h" : Math.round(m / 1440) + " d";
+}
+function renderMenu(i) {
+  i = i || {};
+  $("mName").textContent = i.name || "Emi";
+  $("mStatus").textContent = i.status || "";
+  const off = i.voice === false;
+  $("mListen").textContent = off ? "Voice is off" : S.paused ? "Paused: not listening for your voice" : `Listening for “Hey ${i.name || "Emi"}”`;
+  $("mPause").textContent = S.paused ? "Resume" : "Pause"; $("mPause").style.display = off ? "none" : "";
+  const keys = i.keys || {};
+  document.querySelectorAll(".tile small[data-key]").forEach(el => { const k = el.dataset.key; if (keys[k]) el.textContent = keys[k]; });
+  const inc = !!i.incognito; $("mIncog").classList.toggle("on", inc); $("mIncogState").textContent = inc ? "On" : "Off";
+  const rec = i.recent || [];
+  $("mRecent").innerHTML = rec.length ? rec.map((r, n) => `<li data-i="${n}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg><span>${esc(r.q)}</span><time>${esc(ago(r.t))}</time></li>`).join("")
+                                      : `<li class="none">Nothing yet. Say “Hey ${esc(i.name || "Emi")}” to start.</li>`;
+}
+document.querySelectorAll("#menu [data-a]").forEach(b => b.addEventListener("click", e => {
+  e.stopPropagation();
+  const a = b.dataset.a;
+  if (a === "incognito") { call("menu_action", a); return; }        // stays open; the switch updates
+  closeMenu(!["type", "control"].includes(a), "picked " + a);
+  call("menu_action", a);
+}));
+$("mPause").addEventListener("click", e => { e.stopPropagation(); call("menu_action", "pause"); });
+$("mRecent").addEventListener("click", e => { const li = e.target.closest("li[data-i]"); if (!li) return; e.stopPropagation();
+  closeMenu(false, "opened a recent answer"); call("menu_recent", +li.dataset.i); });
+
+/* ── waveform: real levels from the mic (listening) or the voice (speaking) ── */
+const bars = [...document.querySelectorAll("#wave i")];
+const phase = bars.map((_, i) => i * 1.7);
+let ticking = false;   // the animation loop only runs while something moves (saves CPU when idle)
+function kick(ms = 900) { S.animUntil = performance.now() + ms; startTick(); }
+function startTick() { if (!ticking) { ticking = true; requestAnimationFrame(tick); } }
+function tick(t) {
+  S.level += (S.target - S.level) * 0.35; S.target *= 0.86;
+  const live = island.classList.contains("wave-on");
+  if (S.shown) bars.forEach((b, i) => {
+    const wob = 0.55 + 0.45 * Math.sin(t / (140 + i * 23) + phase[i]);
+    const h = live ? 4 + Math.min(1, S.level * 1.15) * 22 * wob + (S.state === "speaking" ? 2 : 0) : 4;
+    b.style.height = h.toFixed(1) + "px";
+  });
+  reportShapes();
+  if (S.shown || performance.now() < S.animUntil) requestAnimationFrame(tick); else ticking = false;
+}
+function reportShapes() {   // the window is cut to exactly these shapes, so nothing else of it is ever visible
+  if (!S.winOn) return;
+  const shapes = [];
+  const n = notch.getBoundingClientRect();
+  if (n.height > 0.5) {
+    const cs = getComputedStyle(notch);
+    shapes.push(["notch", n.left, 0, n.width, n.height, parseFloat(cs.borderBottomLeftRadius) || 0, parseFloat(cs.getPropertyValue("--s")) || 0]);
+  }
+  if (S.shown) { const r = island.getBoundingClientRect(); shapes.push(["round", r.left, r.top, r.width, r.height, Math.min(28, r.height / 2)]); }
+  const k = JSON.stringify(shapes.map(x => x.map(v => typeof v === "number" ? Math.round(v * 2) / 2 : v)));
+  if (k !== S.clipK) { S.clipK = k; call("clip", ++S.clipSeq, shapes, devicePixelRatio); }
+}
+
+/* ── markdown-lite ── */
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function md(src) {
+  let s = esc(src || ""); const blocks = [];
+  s = s.replace(/```[\w-]*\n?([\s\S]*?)```/g, (_, c) => { blocks.push(`<pre>${c.trim()}</pre>`); return `\u0000${blocks.length - 1}\u0000`; });
+  s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
+       .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>')
+       .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2">$2</a>');
+  return s.split(/\n{2,}/).map(p => { const L = p.split("\n");
+    if (L.every(l => /^\s*[-•*]\s+/.test(l))) return "<ul>" + L.map(l => "<li>" + l.replace(/^\s*[-•*]\s+/, "") + "</li>").join("") + "</ul>";
+    return "<p>" + L.join("<br>") + "</p>"; }).join("").replace(/<p>\u0000(\d+)\u0000<\/p>|\u0000(\d+)\u0000/g, (_, a, b) => blocks[a ?? b]);
+}
+
+/* ── answer card lifetime: stays while you read (and while the mouse is on it) ── */
+function holdAnswer(ms) {
+  clearTimeout(S.holdT);
+  S.holdT = setTimeout(function again() {
+    if (island.matches(":hover")) { S.holdT = setTimeout(again, 1500); return; }
+    $("answerBlk").classList.remove("show"); $("youBlk").classList.remove("show"); $("steps").classList.remove("show");
+    layout(); if (!ACTIVE.includes(S.state)) hide();
+  }, ms);
+}
+
+function holdToast(ms) {
+  clearTimeout(S.toastT);
+  S.toastT = setTimeout(function again() {
+    if (island.matches(":hover")) { S.toastT = setTimeout(again, 1500); return; }
+    $("toast").classList.remove("show"); layout(); if (!ACTIVE.includes(S.state)) hide();
+  }, ms);
+}
+
+/* ── called from Python ── */
+const LABELS = { listening: "Listening", thinking: "Thinking", working: "Working", speaking: "Speaking", loading: "Getting ready", error: "Hmm", idle: "Emi" };
+window.emi = {
+  status(kind, text) {
+    S.state = kind; island.dataset.state = kind;
+    island.classList.toggle("busy", ["thinking", "working", "speaking"].includes(kind));
+    island.classList.toggle("wave-on", kind === "listening" || kind === "speaking");
+    const idleSub = $("answerBlk").classList.contains("show") ? "Here you go" : S.idleHint;
+    const sub = text || { listening: "I'm all ears…", thinking: "One sec…", speaking: "", idle: idleSub }[kind] || "";
+    setText(LABELS[kind] || "Emi", sub);
+    if (kind === "idle") { S.stickyW = 0; hide(); }
+    else if (kind === "loading" && !S.shown) return;
+    else { show(); layout(); if (kind === "error") { clearTimeout(S.hideT); S.hideT = setTimeout(() => { S.state = "idle"; hide(true); }, 6500); } }
+  },
+  level(v) { S.target = Math.max(S.target, +v || 0); },
+  user(text) { $("you").innerHTML = "<b>You</b>&nbsp; " + esc(text); S.answerText = "";
+    $("answerBlk").classList.remove("show"); $("dock").classList.remove("show"); clearTimeout(S.holdT); show(); layout(); },
+  reply(text, expand) {
+    S.answerText = text || "";
+    $("answer").innerHTML = md(text);
+    if (expand) { $("youBlk").classList.add("show"); $("answerBlk").classList.add("show"); if ($("steps").children.length) $("steps").classList.add("show"); show(); layout();
+      holdAnswer(Math.max(9000, Math.min(45000, 6000 + S.answerText.length * 45)));
+    } else { $("youBlk").classList.remove("show"); $("steps").classList.remove("show"); layout(); }
+  },
+  clearSteps() { $("steps").innerHTML = ""; $("steps").classList.remove("show"); },
+  addStep(id, label) { const li = document.createElement("li"); li.id = "s" + id; li.className = "run";
+    li.innerHTML = '<span class="dot"></span>' + esc(label); $("steps").appendChild(li);   /* shown with the answer card */ },
+  finishStep(id, ok) { const li = $("s" + id); if (li) li.className = ok ? "ok" : "bad"; },
+  confirm(id, text, voice) { const [t, ...rest] = String(text).split("\n"); S.confirmId = id;
+    $("cTitle").textContent = t; $("cBody").textContent = rest.join("\n"); $("cHint").style.display = voice ? "" : "none";
+    $("confirm").classList.add("show"); show(); layout(); },
+  closeConfirm(id) { if (S.confirmId === id) { S.confirmId = null; $("confirm").classList.remove("show"); layout(); } },
+  suggest(id, text) { S.ideaId = id; $("ideaText").textContent = text; $("idea").classList.add("show"); show(); layout(); },
+  closeSuggestion(id) { if (S.ideaId === id) { S.ideaId = null; $("idea").classList.remove("show"); layout(); hide(); } },
+  toast(text) { $("toastText").textContent = text; $("toast").classList.add("show"); show(); layout(); holdToast(7000); },
+  openInput(mode) { if (mode) setMode(mode); $("dock").classList.add("show"); show(); layout(); setTimeout(() => $("ask").focus(), 60); },
+  wake() { show(); if (!ACTIVE.includes(S.state)) hide(); },
+  flash(text, ms) { setText("Emi", text); show(); layout(); clearTimeout(S.hideT); S.hideT = setTimeout(() => hide(true), ms || 2600); },
+  dismiss() { clearCard(); $("dock").classList.remove("show"); layout(); hide(true); },
+  settings(o) {
+    if (o.theme) root.dataset.theme = o.theme;
+    if (o.idleHint) S.idleHint = o.idleHint;
+    if (o.idleLook) S.idleLook = o.idleLook;
+    if (o.fullscreen !== undefined) S.fullscreen = !!o.fullscreen;
+    if (o.paused !== undefined) { S.paused = !!o.paused; root.classList.toggle("paused", S.paused); }
+    if (o.menu) { S.info = { ...(S.info || {}), ...o.menu }; if (S.notch === "menu") renderMenu(S.info); }
+    if (o.name) $("ask").placeholder = `Ask ${o.name} anything`;
+    if (o.incognito !== undefined) island.classList.toggle("incognito", o.incognito);
+    if (o.solid !== undefined) { S.solid = !!o.solid; S.clipK = ""; if (S.solid) root.dataset.solid = ""; else delete root.dataset.solid; }
+    if (o.incognito !== undefined) root.classList.toggle("incognito", o.incognito);
+    refreshNotch();
+  },
+};
+
+/* ── your actions ── */
+function send() { const t = $("ask").value.trim(); if (!t) return; $("ask").value = ""; $("dock").classList.remove("show"); call("submit", t, S.mode); }
+function setMode(m) { S.mode = m; document.querySelectorAll("#modes button").forEach(b => b.classList.toggle("on", b.dataset.m === m)); }
+$("sendBtn").onclick = send;
+$("ask").addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); send(); }
+  else if (e.key === "Tab") { e.preventDefault(); const o = ["ask", "screen", "crop"]; const n = o[(o.indexOf(S.mode) + 1) % 3]; n === "crop" ? (setMode("crop"), call("crop")) : setMode(n); }
+  else if (e.key === "Escape") { window.emi.dismiss(); }
+});
+document.querySelectorAll("#modes button").forEach(b => b.onclick = () => { if (b.dataset.m === "crop") { setMode("crop"); call("crop"); } else { setMode(b.dataset.m); $("ask").focus(); } });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape" || document.activeElement === $("ask")) return;
+  if (S.notch === "menu") return closeMenu(true, "Esc");
+  call("stop"); window.emi.dismiss();
+});
+$("orb").onclick = () => (island.classList.contains("busy") ? call("stop") : call("talk"));
+$("top").addEventListener("click", e => { if (e.target.closest("button") || e.target.id === "orb") return;
+  if (S.answerText && !$("answerBlk").classList.contains("show")) { $("answerBlk").classList.add("show"); layout(); holdAnswer(20000); } });
+$("stopBtn").onclick = () => call("stop");
+$("moreBtn").onclick = () => call("open_control");
+$("closeBtn").onclick = () => { call("stop"); window.emi.dismiss(); };
+$("allowBtn").onclick = () => S.confirmId && call("answer", S.confirmId, true);
+$("denyBtn").onclick = () => S.confirmId && call("answer", S.confirmId, false);
+$("ideaYes").onclick = () => { if (S.ideaId) call("suggestion", S.ideaId, true); window.emi.closeSuggestion(S.ideaId); };
+$("ideaNo").onclick = () => { if (S.ideaId) call("suggestion", S.ideaId, false); window.emi.closeSuggestion(S.ideaId); };
+$("toastBtn").onclick = () => { clearTimeout(S.toastT); $("toast").classList.remove("show"); layout(); hide(); };
+$("copyBtn").onclick = () => { navigator.clipboard && navigator.clipboard.writeText(S.answerText); $("copyBtn").textContent = "Copied"; setTimeout(() => $("copyBtn").textContent = "Copy", 1400); };
+$("sayBtn").onclick = () => call("say", S.answerText);
+document.addEventListener("click", e => { const a = e.target.closest("a"); if (a) { e.preventDefault(); call("open_link", a.getAttribute("href")); } });
+
+let booted = false;
+async function boot() { if (booted || !api()) return; booted = true; const s = await call("ready"); if (s) window.emi.settings(s); }
+window.addEventListener("pywebviewready", boot); boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+# Brain
+anthropic>=0.70
+openai>=1.50            # only needed for non-Claude providers / cloud speech-to-text
+# Dynamic island + Control Center (Microsoft Edge WebView2, built into Windows 11)
+pywebview>=5.3
+pystray                 # the tray icon near the clock
+# Ears + voice
+numpy
+sounddevice
+soundfile
+faster-whisper>=1.1
+edge-tts>=7.0
+# PC control
+keyboard
+pygetwindow
+pycaw; sys_platform == "win32"
+mss
+pillow
+psutil
+pyperclip
+send2trash
+# Web + files
+httpx
+beautifulsoup4
+ddgs
+pypdf
+python-docx
+openpyxl
+# Config
+pyyaml
