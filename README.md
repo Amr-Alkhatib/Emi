@@ -132,11 +132,11 @@ Emi stays out of sight until you need her.
 
 ## Full access
 
-Out of the box, Emi asks **Allow / Deny** before anything risky: running commands, deleting (to the Recycle Bin), moving or overwriting files, closing windows, ending programs, shutting down, or pressing Enter for you. For voice requests you can answer "yes" or "no" out loud.
+Out of the box, Emi asks **Allow / Deny** before anything risky: running commands, deleting (to the Recycle Bin), moving, overwriting or adding to existing files, creating files that can run as programs (scripts, `.bat`, `.exe` and the like) or that land where apps keep their settings and the Startup folder, closing windows, ending programs, shutting down, or pressing Enter for you. For voice requests you can answer "yes" or "no" out loud.
 
 **To give her full access**, switch off **Ask first** on the Control Center's home page, or set `safety.mode: full` in `config.yaml`. She then acts without asking, and the Control Center shows **Full access** so you always know. Some things stay the same either way:
 - Deleted files still go to the Recycle Bin, so you can get them back.
-- She won't end core Windows processes, and won't touch her own API key file.
+- She won't end core Windows processes, won't touch her own API key file, and won't change anything in her own folder (her code, settings and saved choices).
 - Only *you* can turn full access on or off. Emi can't change it herself, even if a web page or file tells her to.
 
 **Administrator rights** (offered by `install_shortcuts.bat`) go one step further. Emi can change system settings, install programs for all users and control admin windows, all without UAC pop-ups. Windows asks you once while setting it up.
