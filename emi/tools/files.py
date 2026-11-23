@@ -45,6 +45,10 @@ def known_folder(name: str) -> Path:
 
 
 SECRET_FILES = {(ROOT / ".env").resolve()}
+OWN_DIR = ROOT.resolve()
+# Files that Windows can run, or that programs load as code. Creating one always asks first.
+RUNNABLE = EXECUTABLE | {".py", ".pyw", ".js", ".jse", ".vbe", ".wsf", ".wsh", ".hta", ".psm1", ".psd1", ".url",
+                         ".cpl", ".msc", ".dll", ".scf", ".inf", ".sys"}
 
 
 def resolve(p: str) -> Path:
@@ -61,6 +65,33 @@ def resolve(p: str) -> Path:
             raise ToolError("That file holds Emi's API key, so I keep my hands off it.")
     except OSError:
         pass
+    return path
+
+
+def _inside(path: Path, folder: Path) -> bool:
+    try:
+        path.resolve().relative_to(folder)
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def _app_data() -> list[Path]:
+    """Where programs keep their settings. The Startup folder lives in here too."""
+    dirs = {Path.home() / "AppData"}
+    for var in ("APPDATA", "LOCALAPPDATA"):
+        if os.environ.get(var):
+            dirs.add(Path(os.environ[var]))
+    return [d.resolve() for d in dirs]
+
+
+def guard_change(path: Path) -> Path:
+    """For tools that create, change, move or delete files. Emi never changes her own folder (her code, settings and
+    saved choices), in any safety mode, so a web page or document can't talk her into rewriting her own rules.
+    A change there would also go live by itself, because she restarts when her files change."""
+    if _inside(path, OWN_DIR):
+        raise ToolError("That's inside my own folder (my code and settings), so I don't change it. "
+                        "You can edit it yourself.")
     return path
 
 
@@ -180,10 +211,16 @@ def read_file(ctx, a):
 
 
 def _confirm_write(a):
-    path = resolve(a.get("path", ""))
+    path = guard_change(resolve(a.get("path", "")))
     mode = a.get("mode", "create")
     if path.exists() and mode == "overwrite":
         return f"Overwrite the existing file?\n{path}"
+    if path.exists() and mode == "append":
+        return f"Add to the existing file?\n{path}"
+    if path.suffix.lower() in RUNNABLE:
+        return f"Create a file that can run as a program?\n{path}"
+    if any(_inside(path, d) for d in _app_data()):
+        return f"Create a file where programs keep their settings (this includes the Startup folder)?\n{path}"
     return None
 
 
@@ -193,7 +230,7 @@ def _confirm_write(a):
        "mode": {"type": "string", "enum": ["create", "overwrite", "append"]}},
       ["path", "content"], confirm=_confirm_write, label=lambda a: f"Writing {Path(str(a.get('path'))).name}")
 def write_file(ctx, a):
-    path = resolve(a["path"])
+    path = guard_change(resolve(a["path"]))
     mode = a.get("mode", "create")
     if path.exists() and mode == "create":
         raise ToolError(f"{path} already exists. Use mode 'append' or 'overwrite'.")
@@ -205,10 +242,11 @@ def write_file(ctx, a):
 
 @tool("move_file", "Move or rename a file or folder.",
       {"source": {"type": "string"}, "destination": {"type": "string"}}, ["source", "destination"],
-      confirm=lambda a: f"Move\n{resolve(a.get('source', ''))}\n→ {resolve(a.get('destination', ''))}?",
+      confirm=lambda a: (f"Move\n{guard_change(resolve(a.get('source', '')))}\n"
+                         f"→ {guard_change(resolve(a.get('destination', '')))}?"),
       label="Moving files")
 def move_file(ctx, a):
-    src, dst = resolve(a["source"]), resolve(a["destination"])
+    src, dst = guard_change(resolve(a["source"])), guard_change(resolve(a["destination"]))
     if not src.exists():
         raise ToolError(f"Not found: {src}")
     if dst.is_dir():
@@ -222,10 +260,10 @@ def move_file(ctx, a):
 
 @tool("delete_file", "Delete a file or folder by sending it to the Recycle Bin (recoverable).",
       {"path": {"type": "string"}}, ["path"],
-      confirm=lambda a: f"Send this to the Recycle Bin?\n{resolve(a.get('path', ''))}",
+      confirm=lambda a: f"Send this to the Recycle Bin?\n{guard_change(resolve(a.get('path', '')))}",
       label="Deleting")
 def delete_file(ctx, a):
-    path = resolve(a["path"])
+    path = guard_change(resolve(a["path"]))
     if not path.exists():
         raise ToolError(f"Not found: {path}")
     if path == Path.home() or len(path.parts) <= 2:

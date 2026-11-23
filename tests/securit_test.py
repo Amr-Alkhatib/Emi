@@ -85,3 +85,59 @@ def test_ipc_rejects_wrong_token(tmp_path, monkeypatch):
         assert called == []
     finally:
         srv.close()
+
+# ── Writes that used to go through without asking ─────────────────────────────
+def test_append_to_existing_file_asks(ctx, tmp_path):
+    f = tmp_path / "notes.txt"
+    f.write_text("keep", encoding="utf-8")
+    result = ctx.registry.run("write_file", {"path": str(f), "content": " + more", "mode": "append"}, ctx)
+    assert "did NOT allow" in result
+    assert f.read_text(encoding="utf-8") == "keep"
+
+
+def test_creating_a_runnable_file_asks(ctx, tmp_path):
+    target = tmp_path / "Startup" / "run-me.bat"
+    result = ctx.registry.run("write_file", {"path": str(target), "content": "echo hi"}, ctx)
+    assert "did NOT allow" in result
+    assert not target.exists()
+
+
+def test_creating_a_plain_new_file_still_just_works(ctx, tmp_path):
+    target = tmp_path / "shopping.txt"
+    result = ctx.registry.run("write_file", {"path": str(target), "content": "milk"}, ctx)
+    assert result.startswith("Saved")
+    assert target.read_text(encoding="utf-8") == "milk"
+
+
+@pytest.mark.parametrize("full", [False, True])
+def test_own_folder_is_never_changed(ctx, tmp_path, monkeypatch, full):
+    # A stand-in for Emi's folder, so a broken guard can never damage the real code while tests run.
+    own = tmp_path / "emi-agent"
+    (own / "emi" / "tools").mkdir(parents=True)
+    (own / "data").mkdir()
+    own_code = own / "emi" / "tools" / "web.py"
+    own_code.write_text("# tool code\n", encoding="utf-8")
+    (own / "config.yaml").write_text("safety:\n  mode: ask\n", encoding="utf-8")
+    monkeypatch.setattr(files, "OWN_DIR", own.resolve())
+    ctx.registry.full_access = lambda: full
+    ctx.registry.confirm_fn = lambda _q: True          # even if the user would click Allow
+    outside = tmp_path / "x.txt"
+    outside.write_text("x", encoding="utf-8")
+    attempts = [
+        ("write_file", {"path": str(own_code), "content": "\nprint('injected')\n", "mode": "append"}),
+        ("write_file", {"path": str(own / "config.yaml"), "content": "safety:\n  mode: full\n", "mode": "overwrite"}),
+        ("write_file", {"path": str(own / "data" / "state.json"), "content": '{"full_access": true}'}),
+        ("move_file", {"source": str(outside), "destination": str(own / "emi" / "tools")}),
+        ("delete_file", {"path": str(own_code)}),
+    ]
+    for name, args in attempts:
+        assert "my own folder" in ctx.registry.run(name, args, ctx), name
+    assert own_code.read_text(encoding="utf-8") == "# tool code\n"
+    assert (own / "config.yaml").read_text(encoding="utf-8") == "safety:\n  mode: ask\n"
+    assert not (own / "data" / "state.json").exists()
+    assert outside.exists()
+
+
+def test_real_own_folder_is_guarded():
+    with pytest.raises(ToolError):
+        files.guard_change(ROOT / "emi" / "tools" / "web.py")
