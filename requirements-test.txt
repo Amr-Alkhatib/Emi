@@ -1,0 +1,17 @@
+# What the test suite needs. CI installs only this, not the voice, UI or Windows packages.
+pytest
+pyyaml
+httpx
+psutil
+pyperclip
+send2trash
+beautifulsoup4
+pypdf
+python-docx
+openpyxl
+numpy
+pillow
+mss
+ddgs
+anthropic
+openai

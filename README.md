@@ -1,5 +1,7 @@
 # Emi: your own voice assistant for Windows
 
+[![tests](https://github.com/Amr-Alkhatib/Emi/actions/workflows/tests.yml/badge.svg)](https://github.com/Amr-Alkhatib/Emi/actions/workflows/tests.yml)
+
 Emi sits in the corner of your screen. Say **"Emi, …"** from any app, or press your summon shortcut (even when she isn't running), and she answers out loud. She can open and close apps, control music, find, read and organise files, run commands, search the web, look at your screen, remember things about you, set reminders, run your routines, and do multi-step jobs on your PC.
 
 Her brain is **Gemini** (you can pick the model in her Control Center). Big jobs such as code, documents, sorting lots of files, or research go to **Claude** through Claude Code, which runs on your Claude plan with no API key or credits. Hearing runs on your laptop's CPU, and your memories are plain files in the `data` folder.
